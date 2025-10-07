@@ -1,5 +1,4 @@
 import tkinter as tk
-from fileinput import close
 from tkinter import ttk, messagebox
 import uuid
 import json

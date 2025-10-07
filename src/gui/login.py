@@ -1,7 +1,6 @@
 import json
 import tkinter as tk
 from tkinter import ttk, messagebox
-from utils.user import User
 
 class LoginPanel(tk.Frame):
     def __init__(self, parent, switch_frame):
