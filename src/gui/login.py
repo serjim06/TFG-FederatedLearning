@@ -1,6 +1,9 @@
 import json
 import tkinter as tk
 from tkinter import ttk, messagebox
+from src.db import dbcon
+from src.utils.user import User
+
 
 class LoginPanel(tk.Frame):
     def __init__(self, parent, switch_frame):
@@ -42,14 +45,19 @@ class LoginPanel(tk.Frame):
         if not(user or passwd):
             messagebox.showerror("Error", "Rellena los campos")
 
-        with open("../database/users.json", "r") as users:
-            data = json.load(users)
-            data_user = next((u for u in data if u["username"] == user and u["password"] == passwd), None)
-            if not data_user:
-                messagebox.showerror("Error", "Usuario o contraseña incorrecto")
-                return
-            else:
-                #Usuario y contraseña coinciden
-                new_user = User(**data_user)
-                self.switch_frame("dashboard", new_user)
+        try:
+            obj_user = dbcon.select("users", {
+                "username": user,
+                "password": passwd
+            })
 
+            if not obj_user:
+                messagebox.showerror("Error", "Usuario o contraseña incorrectos")
+                return
+
+            new_user = User(**obj_user[0])
+            self.switch_frame("dashboard", new_user)
+
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+            return

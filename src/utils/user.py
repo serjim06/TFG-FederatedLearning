@@ -1,9 +1,8 @@
 class User:
-    def __init__(self, id, username, password, role, projects):
+    def __init__(self, id, username, password, role):
         self.id = id
         self.username = username
         self.password = password
-        self.projects = projects
         self.role = role
 
     def __getitem__(self, item):
@@ -11,6 +10,11 @@ class User:
             return getattr(self, item)
         raise KeyError(item)
 
+    def __setitem__(self, key, value):
+        if hasattr(self, key):
+            setattr(self, key, value)
+        else:
+            raise KeyError(key)
 
     def modify(self, username=None, password=None):
         if username:
@@ -24,5 +28,4 @@ class User:
             "username": self.username,
             "password": self.password,
             "role": self.role,
-            "projects": self.projects,
         }

@@ -1,5 +1,7 @@
 import tkinter as tk
+import uuid
 from tkinter import ttk, messagebox
+from src.db import dbcon
 
 
 class ProfileFrame(tk.Frame):
@@ -25,6 +27,10 @@ class ProfileFrame(tk.Frame):
         self.info_frame = tk.Frame(self, bg="#f5f5f5", bd=1, relief=tk.RIDGE)
         self.info_frame.pack(padx=50, pady=20, fill=tk.BOTH, expand=True)
 
+        # ID
+        ttk.Label(self.info_frame, text=f"ID: {uuid.UUID(bytes=self.usuario['id'])}",
+                  font=("Segoe UI", 14), background="#f5f5f5").pack(pady=10, anchor="w", padx=10)
+
         # Usuario
         ttk.Label(self.info_frame, text=f"Usuario: {self.usuario['username']}",
                   font=("Segoe UI", 14), background="#f5f5f5").pack(pady=10, anchor="w", padx=10)
@@ -44,7 +50,7 @@ class ProfileFrame(tk.Frame):
         self.password_entry = ttk.Entry(pw_frame, show="*", font=("Segoe UI", 12), state="readonly")
         self.password_entry.pack(side="left", fill="x", expand=True)
         self.password_entry.config(state="normal")
-        self.password_entry.insert(0, self.usuario['password'])  # 👈 aquí se pone la contraseña actual
+        self.password_entry.insert(0, self.usuario['password'])
         self.password_entry.config(state="readonly")
         # Botón de ojo
         self.show_pw = False
@@ -56,7 +62,7 @@ class ProfileFrame(tk.Frame):
                   font=("Segoe UI", 14), background="#f5f5f5").pack(pady=10, anchor="w", padx=10)
 
         # Proyectos
-        ttk.Label(self.info_frame, text=f"Número de proyectos: {len(self.usuario['projects'])}",
+        ttk.Label(self.info_frame, text=f"Número de proyectos: {len(dbcon.select("projects", {"uid":self.usuario['id']}))}",
                   font=("Segoe UI", 14), background="#f5f5f5").pack(pady=10, anchor="w", padx=10)
 
         # Botón Cerrar sesión abajo

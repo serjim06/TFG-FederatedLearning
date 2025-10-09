@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import uuid
 import json
-
+from src.db import dbcon
 
 
 class RegisterFrame(tk.Frame):
@@ -55,23 +55,15 @@ class RegisterFrame(tk.Frame):
             messagebox.showerror("Error", "Las contraseñas no coinciden")
             return
 
-        with open("../database/users.json") as users:
-            data = json.load(users)
-
-            if any(u["username"] == username for u in data):
-                messagebox.showerror("Error", "Usuario ya existente")
-                return
-
-            id = str(uuid.uuid4())
-            data.append({
-                "id": id,
+        try:
+            dbcon.insert("users", {
                 "username": username,
                 "password": password,
-                "role": "user",
-                "projects": []
+                "role": "user"
             })
-        with open("../database/users.json", "w") as users:
-            json.dump(data, users, indent=4)
 
-        messagebox.showinfo("Éxito", "El usuario se ha registrado correctamente")
-        self.switch_frame("login")
+            messagebox.showinfo("Éxito","Usuario registrado correctamente")
+            self.switch_frame("login")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+            return

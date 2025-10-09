@@ -1,7 +1,8 @@
 import tkinter as tk
 from gui import login, recover, register, dashboard, profile
 from utils.user import User
-from supabase import Client, create_client
+from supabase import create_client
+from src.db import dbcon
 
 SUPABASE_URL = "https://eiwtbppjmzdqokwpofmf.supabase.co"
 SUPABASE_KEY = "sb_publishable_BNvWjuceL4qlfDmt_bGZvg_45Iudw19"
@@ -48,7 +49,7 @@ class App(tk.Tk):
 
 if __name__ == "__main__":
     user = None
-
+    dbcon.connect("database.db")
     app = App()
     app.mainloop()
 

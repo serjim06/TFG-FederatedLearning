@@ -1,12 +1,15 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import json
+from src.db import dbcon
+from src.utils.user import User
 
 class RecoverFrame(tk.Frame):
     def __init__(self, parent, switch_frame):
         super().__init__(parent)
         self.configure(bg="#e0e0e0")  # fondo gris claro
         self.switch_frame = switch_frame
+        self.new_user : User = None
 
         # Estilo para botones
         style = ttk.Style()
@@ -43,33 +46,36 @@ class RecoverFrame(tk.Frame):
         self.back_button.pack(side=tk.BOTTOM, pady=20, ipadx=10, ipady=5)
 
     def verify_user(self):
-        username = self.user_entry.get().strip()
-        if not username:
+        user = self.user_entry.get().strip()
+        if not user:
             messagebox.showerror("Error", "Introduce un usuario o email")
             return
 
-        # Comprobar si el usuario existe
-        with open("../database/users.json", "r") as f:
-            data = json.load(f)
+        try:
+            result = dbcon.select("users", {"username": user})
+            if not result:
+                messagebox.showerror("Error", "Usuario no existe")
+                return
 
-        self.user_data = next((u for u in data if u["username"] == username), None)
-        if not self.user_data:
-            messagebox.showerror("Error", "Usuario no encontrado")
+            self.new_user = User(**result[0])
+
+            # Ocultar widgets del paso 1
+            self.user_label.pack_forget()
+            self.user_entry.pack_forget()
+            self.verify_button.pack_forget()
+
+            # Mostrar campos de nueva contraseña
+            self.new_password_label.pack(pady=(10, 5))
+            self.new_password_entry.pack(pady=5, ipadx=50, ipady=5)
+            self.conf_new_password_label.pack(pady=(15, 5))
+            self.conf_new_password_entry.pack(pady=5, ipadx=50, ipady=5)
+            self.reset_button.pack(pady=20, ipadx=10, ipady=5)
+
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
             return
 
-        messagebox.showinfo("Usuario encontrado", f"Usuario {username} verificado")
 
-        # Ocultar widgets del paso 1
-        self.user_label.pack_forget()
-        self.user_entry.pack_forget()
-        self.verify_button.pack_forget()
-
-        # Mostrar campos de nueva contraseña
-        self.new_password_label.pack(pady=(10, 5))
-        self.new_password_entry.pack(pady=5, ipadx=50, ipady=5)
-        self.conf_new_password_label.pack(pady=(15, 5))
-        self.conf_new_password_entry.pack(pady=5, ipadx=50, ipady=5)
-        self.reset_button.pack(pady=20, ipadx=10, ipady=5)
 
     def reset_password(self):
         new_pass = self.new_password_entry.get()
@@ -82,15 +88,13 @@ class RecoverFrame(tk.Frame):
             messagebox.showerror("Error", "Las contraseñas no coinciden")
             return
 
-        # Actualizar en JSON
-        with open("../database/users.json", "r") as f:
-            data = json.load(f)
-        for u in data:
-            if u["username"] == self.user_data["username"]:
-                u["password"] = new_pass
-                break
-        with open("../database/users.json", "w") as f:
-            json.dump(data, f, indent=4)
+        try:
+            self.new_user['password'] = new_pass
+            dbcon.update("users", self.new_user.to_dict())
 
-        messagebox.showinfo("Éxito", "Contraseña actualizada correctamente")
-        self.switch_frame("login")
+            messagebox.showinfo("Éxito", "Contraseña actualizada correctamente")
+            self.switch_frame("login")
+
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+            return
