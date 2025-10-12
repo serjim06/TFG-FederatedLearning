@@ -1,5 +1,5 @@
 import tkinter as tk
-from gui import login, recover, register, dashboard, profile
+from gui import login, recover, register, dashboard, profile, modify
 from utils.user import User
 from supabase import create_client
 from src.db import dbcon
@@ -41,7 +41,12 @@ class App(tk.Tk):
             self.usuario_actual = usuario
             frame = dashboard.DashboardFrame(self.container, self.show_frame, self.usuario_actual)
         elif name == "profile":
-            frame = profile.ProfileFrame(self.container, self.show_frame, self.usuario_actual)
+            frame = profile.ProfileFrame(self.container, self.show_frame, usuario)
+        elif name == "modify":
+            frame = modify.ModifyPanel(self.container, self.show_frame, self.usuario_actual)
+        elif name == "modified_profile":
+            self.usuario_actual = usuario
+            frame = profile.ProfileFrame(self.container, self.show_frame, usuario)
 
 
         self.frames[name] = frame

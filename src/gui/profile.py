@@ -67,7 +67,12 @@ class ProfileFrame(tk.Frame):
 
         # Botón Cerrar sesión abajo
         self.logout_button = ttk.Button(self, text="Cerrar sesión", style="Accent.TButton", command=self.cerrar_sesion)
-        self.logout_button.pack(side="bottom", pady=30, ipadx=15, ipady=5)
+        self.logout_button.pack(pady=15, ipadx=15, ipady=5)
+
+        self.logout_button = ttk.Button(self, text="Modificar perfil", style="Accent.TButton", command=lambda: self.switch_frame("modify", self.usuario))
+        self.logout_button.pack(pady=15, ipadx=15, ipady=5)
+
+        ttk.Button(self, text="Volver", command=lambda: self.switch_frame("dashboard",self.usuario)).pack(side="bottom", pady=15, ipadx=15, ipady=5)
 
     def toggle_password(self):
         """Muestra o oculta la contraseña"""
