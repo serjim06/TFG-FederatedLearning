@@ -52,6 +52,8 @@ class ProfileFrame(tk.Frame):
         self.password_entry.config(state="normal")
         self.password_entry.insert(0, self.usuario['password'])
         self.password_entry.config(state="readonly")
+
+
         # Botón de ojo
         self.show_pw = False
         self.eye_button = ttk.Button(pw_frame, text="👁", width=3, command=self.toggle_password)

@@ -4,11 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="899d3d77-e76f-4d7d-b77e-18ca40a48e89" name="Changes" comment="Hito 1 completado y database integrada">
-      <change afterPath="$PROJECT_DIR$/src/gui/modify.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/models/node.py" afterDir="false" />
+    <list default="true" id="899d3d77-e76f-4d7d-b77e-18ca40a48e89" name="Changes" comment="Modificar perfil completado. TODO: poner ojo en el login  y resto de contraseñas">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/database/database.db" beforeDir="false" afterPath="$PROJECT_DIR$/database/database.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/gui/login.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/login.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/gui/modify.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/modify.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/gui/profile.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/profile.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.py" afterDir="false" />
     </list>
@@ -132,7 +132,8 @@
       <workItem from="1759945141118" duration="3436000" />
       <workItem from="1759994700971" duration="11000" />
       <workItem from="1759999119938" duration="10794000" />
-      <workItem from="1760294242810" duration="5720000" />
+      <workItem from="1760294242810" duration="5777000" />
+      <workItem from="1760339606533" duration="1391000" />
     </task>
     <task id="LOCAL-00001" summary="Panel login basico">
       <option name="closed" value="true" />
@@ -166,7 +167,15 @@
       <option name="project" value="LOCAL" />
       <updated>1759999672240</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="Modificar perfil completado. TODO: poner ojo en el login  y resto de contraseñas">
+      <option name="closed" value="true" />
+      <created>1760305387354</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1760305387355</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -200,7 +209,8 @@
     <MESSAGE value="Hito 1 completado" />
     <MESSAGE value="ajustes" />
     <MESSAGE value="Hito 1 completado y database integrada" />
-    <option name="LAST_COMMIT_MESSAGE" value="Hito 1 completado y database integrada" />
+    <MESSAGE value="Modificar perfil completado. TODO: poner ojo en el login  y resto de contraseñas" />
+    <option name="LAST_COMMIT_MESSAGE" value="Modificar perfil completado. TODO: poner ojo en el login  y resto de contraseñas" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -214,7 +224,7 @@
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/Project$main.coverage" NAME="main Coverage Results" MODIFIED="1760300367724" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
+    <SUITE FILE_PATH="coverage/Project$main.coverage" NAME="main Coverage Results" MODIFIED="1760340644929" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
     <SUITE FILE_PATH="coverage/Project$dbcon.coverage" NAME="dbcon Coverage Results" MODIFIED="1759917063883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
   </component>
 </project>

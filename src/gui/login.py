@@ -26,10 +26,18 @@ class LoginPanel(tk.Frame):
         self.user_entry = ttk.Entry(self, font=("Segoe UI", 12))
         self.user_entry.pack(pady=5, ipadx=50, ipady=5)
 
+
         # Contraseña
         ttk.Label(self, text="Contraseña:", font=("Segoe UI", 12), background="#e0e0e0").pack(pady=(10, 0))
+
         self.password_entry = ttk.Entry(self, show="*", font=("Segoe UI", 12))
         self.password_entry.pack(pady=5, ipadx=50, ipady=5)
+
+        # Botón del ojo
+        self.show_pw = False
+        self.eye_button = tk.Label(self.password_entry, text="👁", bg="#ffffff", cursor="hand2")
+        self.eye_button.place(relx=1.0, rely=0.5, x=-5, y=0, anchor="e")
+        self.eye_button.bind("<Button-1>", lambda e: self.toggle_password())
 
         # Botón Entrar
         ttk.Button(self, text="Entrar", style="Accent.TButton", command=self.login).pack(pady=20, ipadx=10, ipady=5)
@@ -37,6 +45,15 @@ class LoginPanel(tk.Frame):
         # Botones secundarios
         ttk.Button(self, text="No tengo cuenta", command=lambda: switch_frame("register")).pack(pady=(5, 2))
         ttk.Button(self, text="Olvidé mi contraseña", command=lambda: switch_frame("recover")).pack(pady=2)
+
+    def toggle_password(self):
+        """Muestra o oculta la contraseña"""
+        if self.show_pw:
+            self.password_entry.config(show="*")
+            self.show_pw = False
+        else:
+            self.password_entry.config(show="")
+            self.show_pw = True
 
     def login(self):
         user = self.user_entry.get()

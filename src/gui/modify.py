@@ -42,13 +42,8 @@ class ModifyPanel(tk.Frame):
         self.password_entry.insert(0, self.usuario['password'])
         self.password_entry.pack(side="left", fill="x", expand=True)
 
-        # Botón del ojo usando place
+        # Botón del ojo
         self.show_pw = False
-        #self.eye_button = tk.Button(pw_frame, text="👁", bd=0, bg="#ffffff", cursor="hand2",
-        #                            activebackground="#e0e0e0", command=self.toggle_password)
-        # Colocamos el botón dentro del Entry, alineado a la derecha
-        #self.eye_button.place(relx=1.0, rely=0.5, y=0, anchor="e")
-
         self.eye_button = tk.Label(pw_frame, text="👁", bg="#ffffff", cursor="hand2")
         self.eye_button.place(relx=1.0, rely=0.5, x=-5, y=0, anchor="e")
         self.eye_button.bind("<Button-1>", lambda e: self.toggle_password())

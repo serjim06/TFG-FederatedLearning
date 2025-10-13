@@ -15,6 +15,7 @@ class App(tk.Tk):
         self.title("")
         self.geometry("400x400")
         self.resizable(False, False)
+        self.protocol("WM_DELETE_WINDOW", lambda: self.close())
 
         self.container = tk.Frame(self)
         self.container.pack(fill="both", expand=True)
@@ -51,6 +52,11 @@ class App(tk.Tk):
 
         self.frames[name] = frame
         frame.pack(fill="both", expand=True)
+
+    def close(self):
+        dbcon.disconnect()
+        print("Desconectado de la DB")
+        self.destroy()
 
 if __name__ == "__main__":
     user = None
