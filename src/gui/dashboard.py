@@ -4,24 +4,39 @@ from tkinter import ttk, messagebox
 class DashboardFrame(tk.Frame):
     def __init__(self, parent, switch_frame, usuario):
         super().__init__(parent)
-        self.configure(bg="#e0e0e0")
+        self.configure(bg="#eef4fb")
         self.switch_frame = switch_frame
         self.usuario = usuario  # objeto o dict con info del usuario
 
-        # Estilo para botones
+        # ----- Estilos -----
         style = ttk.Style()
-        style.configure("Accent.TButton", font=("Segoe UI", 12, "bold"),
-                        foreground="#ffffff", background="#4a90e2")
-        style.map("Accent.TButton",
-                  background=[("active", "#357ABD")],
-                  foreground=[("active", "#ffffff")])
+        style.theme_use("clam")
+
+        # Botón principal (azul brillante)
+        style.configure(
+            "Accent.TButton",
+            font=("Segoe UI", 11, "bold"),
+            foreground="#ffffff",
+            background="#4a90e2",
+            padding=6,
+            borderwidth=0
+        )
+        style.map(
+            "Accent.TButton",
+            background=[("active", "#357ABD"), ("pressed", "#2c5a92")],
+            foreground=[("active", "#ffffff")]
+        )
+
+        # Texto general
+        label_font = ("Segoe UI", 12)
+        title_font = ("Segoe UI", 22, "bold")
 
         # Encabezado
-        ttk.Label(self, text=f"Bienvenido, {self.usuario['username']}", font=("Segoe UI", 22, "bold"),
-                  background="#e0e0e0").pack(pady=(30, 20))
+        ttk.Label(self, text=f"Bienvenido, {self.usuario['username']}", font=title_font,
+                  background="#eef4fb").pack(pady=(30, 20))
 
         # Frame central para botones de opción
-        self.content_frame = tk.Frame(self, bg="#e0e0e0")
+        self.content_frame = tk.Frame(self, bg="#eef4fb")
         self.content_frame.pack(pady=20)
 
         # Botón Ver Cuenta

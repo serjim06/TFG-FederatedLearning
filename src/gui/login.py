@@ -32,14 +32,14 @@ class LoginPanel(tk.Frame):
         style.configure(
             "Sec.TButton",
             foreground="#000000",
-            background="#c0bfff",
+            background="#e0e4eb",
             padding=6,
             borderwidth=0
         )
 
         style.map("Sec.TButton",
-                  background=[("active", "#a099ff"),
-                              ("pressed", "#7f7fff")],
+                  background=[("active", "#d3d7df"),
+                              ("pressed", "#c7cbd5")],
                   foreground=[("active", "black"),
                               ("pressed", "white")])
 
@@ -93,7 +93,7 @@ class LoginPanel(tk.Frame):
 
         # Botón Entrar
         ttk.Button(
-            self, text="Entrar", style="Accent.TButton", command=self.login
+            self, text="Iniciar sesión", style="Accent.TButton", command=self.login
         ).pack(pady=20, ipadx=10, ipady=5)
 
         self.password_entry.bind("<Return>", lambda e: self.login())

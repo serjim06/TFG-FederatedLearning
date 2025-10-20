@@ -1,13 +1,7 @@
 import tkinter as tk
-from gui import login, recover, register, dashboard, profile, modify
-from utils.user import User
-from supabase import create_client
+from src.gui import login, recover, register, dashboard, profile, modify
+from src.utils.user import User
 from src.db import dbcon
-
-SUPABASE_URL = "https://eiwtbppjmzdqokwpofmf.supabase.co"
-SUPABASE_KEY = "sb_publishable_BNvWjuceL4qlfDmt_bGZvg_45Iudw19"
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 class App(tk.Tk):
     def __init__(self):

@@ -1,13 +1,18 @@
 import sqlite3
 import uuid
 from sqlite3 import Connection
+import os
 
 database : Connection = None
 
 def connect(name):
     try:
         global database
-        database = sqlite3.connect("../database/" + name)
+
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        DB_PATH = os.path.join(BASE_DIR,"..","..","database",name)
+
+        database = sqlite3.connect(DB_PATH)
     except sqlite3.OperationalError:
         raise Exception("Error connecting to database")
 

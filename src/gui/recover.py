@@ -6,7 +6,7 @@ from src.utils.user import User
 class RecoverFrame(tk.Frame):
     def __init__(self, parent, switch_frame):
         super().__init__(parent)
-        self.configure(bg="#eef4fb")  # fondo gris claro
+        self.configure(bg="#eef4fb")
 
         # ----- Estilos -----
         style = ttk.Style()
@@ -28,14 +28,14 @@ class RecoverFrame(tk.Frame):
         style.configure(
             "Sec.TButton",
             foreground="#000000",
-            background="#c0bfff",
+            background="#e0e4eb",
             padding=6,
             borderwidth=0
         )
 
         style.map("Sec.TButton",
-                  background=[("active", "#a099ff"),
-                              ("pressed", "#7f7fff")],
+                  background=[("active", "#d3d7df"),
+                              ("pressed", "#c7cbd5")],
                   foreground=[("active", "black"),
                               ("pressed", "white")])
 
