@@ -4,12 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="899d3d77-e76f-4d7d-b77e-18ca40a48e89" name="Changes" comment="Modificar perfil completado. TODO: poner ojo en el login  y resto de contraseñas">
+    <list default="true" id="899d3d77-e76f-4d7d-b77e-18ca40a48e89" name="Changes" comment="ojo añadido a login">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/database/database.db" beforeDir="false" afterPath="$PROJECT_DIR$/database/database.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/gui/login.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/login.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/gui/modify.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/modify.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/gui/profile.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/profile.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/gui/recover.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/recover.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/gui/register.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/register.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -58,6 +58,7 @@
     &quot;database.data.extractors.current.export.id&quot;: &quot;Comma-separated (CSV)_id&quot;,
     &quot;database.data.extractors.current.id&quot;: &quot;Comma-separated (CSV)_id&quot;,
     &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/sergio/Documentos/VSCode/PLN/Practicas/P3-NGramas&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -110,8 +111,8 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-b598e85cdad2-JavaScript-PY-252.25557.178" />
-        <option value="bundled-python-sdk-ce6832f46686-7b97d883f26b-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.25557.178" />
+        <option value="bundled-js-predefined-d6986cc7102b-3aa1da707db6-JavaScript-PY-252.26830.99" />
+        <option value="bundled-python-sdk-164cda30dcd9-0af03a5fa574-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.26830.99" />
       </set>
     </attachedChunks>
   </component>
@@ -133,7 +134,13 @@
       <workItem from="1759994700971" duration="11000" />
       <workItem from="1759999119938" duration="10794000" />
       <workItem from="1760294242810" duration="5777000" />
-      <workItem from="1760339606533" duration="1391000" />
+      <workItem from="1760339606533" duration="1445000" />
+      <workItem from="1760352100454" duration="249000" />
+      <workItem from="1760425730784" duration="188000" />
+      <workItem from="1760747233114" duration="143000" />
+      <workItem from="1760944872013" duration="2507000" />
+      <workItem from="1760950194007" duration="3121000" />
+      <workItem from="1760957965792" duration="2767000" />
     </task>
     <task id="LOCAL-00001" summary="Panel login basico">
       <option name="closed" value="true" />
@@ -175,7 +182,15 @@
       <option name="project" value="LOCAL" />
       <updated>1760305387355</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="ojo añadido a login">
+      <option name="closed" value="true" />
+      <created>1760341016043</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1760341016043</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -210,7 +225,8 @@
     <MESSAGE value="ajustes" />
     <MESSAGE value="Hito 1 completado y database integrada" />
     <MESSAGE value="Modificar perfil completado. TODO: poner ojo en el login  y resto de contraseñas" />
-    <option name="LAST_COMMIT_MESSAGE" value="Modificar perfil completado. TODO: poner ojo en el login  y resto de contraseñas" />
+    <MESSAGE value="ojo añadido a login" />
+    <option name="LAST_COMMIT_MESSAGE" value="ojo añadido a login" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -224,7 +240,7 @@
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/Project$main.coverage" NAME="main Coverage Results" MODIFIED="1760340644929" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
+    <SUITE FILE_PATH="coverage/Project$main.coverage" NAME="main Coverage Results" MODIFIED="1760960389675" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
     <SUITE FILE_PATH="coverage/Project$dbcon.coverage" NAME="dbcon Coverage Results" MODIFIED="1759917063883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
   </component>
 </project>

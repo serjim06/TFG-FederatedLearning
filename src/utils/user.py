@@ -23,6 +23,10 @@ class User:
             self.password = password
 
     def to_dict(self):
+        """
+        Convierte los datos de un usuario en un formato legible para la comunicacion con la base de datos.
+        :return: diccionario de los datos de un usuario
+        """
         return {
             "id": self.id,
             "username": self.username,

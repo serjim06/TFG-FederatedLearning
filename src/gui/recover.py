@@ -1,49 +1,89 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import json
 from src.db import dbcon
 from src.utils.user import User
 
 class RecoverFrame(tk.Frame):
     def __init__(self, parent, switch_frame):
         super().__init__(parent)
-        self.configure(bg="#e0e0e0")  # fondo gris claro
+        self.configure(bg="#eef4fb")  # fondo gris claro
+
+        # ----- Estilos -----
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure(
+            "Accent.TButton",
+            font=("Segoe UI", 11, "bold"),
+            foreground="#ffffff",
+            background="#4a90e2",
+            padding=6,
+            borderwidth=0
+        )
+        style.map(
+            "Accent.TButton",
+            background=[("active", "#357ABD"), ("pressed", "#2c5a92")],
+            foreground=[("active", "#ffffff")]
+        )
+        style.configure(
+            "Sec.TButton",
+            foreground="#000000",
+            background="#c0bfff",
+            padding=6,
+            borderwidth=0
+        )
+
+        style.map("Sec.TButton",
+                  background=[("active", "#a099ff"),
+                              ("pressed", "#7f7fff")],
+                  foreground=[("active", "black"),
+                              ("pressed", "white")])
+
+        # Entradas (campos de texto)
+        style.configure(
+            "Custom.TEntry",
+            fieldbackground="#ffffff",
+            background="#ffffff",
+            foreground="#1d2d44",
+            bordercolor="#d9d9d9",
+            relief="flat",
+            insertcolor="#1d2d44"
+        )
+        label_font = ("Segoe UI", 12)
+        title_font = ("Segoe UI", 22, "bold")
+
         self.switch_frame = switch_frame
         self.new_user : User = None
 
-        # Estilo para botones
-        style = ttk.Style()
-        style.configure("Accent.TButton", font=("Segoe UI", 11, "bold"), foreground="#ffffff", background="#4a90e2")
-        style.map("Accent.TButton",
-                  background=[("active", "#357ABD")],
-                  foreground=[("active", "#ffffff")])
-
-        # Frame de contenido central
-        self.content_frame = tk.Frame(self, bg="#e0e0e0")
-        self.content_frame.pack(fill=tk.BOTH, expand=True, pady=40)
+        # Frame de los contenidos
+        self.content_frame = tk.Frame(self, bg="#eef4fb")
+        self.content_frame.pack(fill="both", pady=20)
 
         # Encabezado
-        ttk.Label(self.content_frame, text="Recuperar contraseña", font=("Segoe UI", 22, "bold"), background="#e0e0e0").pack(pady=(0, 30))
+        ttk.Label(self.content_frame, text="Recuperar contraseña", font=title_font, background="#eef4fb").pack(pady=(0, 30))
 
-        # Paso 1: usuario o email
-        self.user_label = ttk.Label(self.content_frame, text="Introduce tu usuario o email:", font=("Segoe UI", 12), background="#e0e0e0")
+        # Usuario
+        self.user_label = ttk.Label(self.content_frame, text="Introduce tu usuario:", font=label_font, background="#eef4fb")
         self.user_label.pack(pady=5)
-        self.user_entry = ttk.Entry(self.content_frame, font=("Segoe UI", 12))
+        self.user_entry = ttk.Entry(self.content_frame, style="Custom.TEntry", font=("Segoe UI", 12))
         self.user_entry.pack(pady=5, ipadx=50, ipady=5)
+
+        self.user_entry.bind("<Return>", lambda e: self.verify_user())
 
         self.verify_button = ttk.Button(self.content_frame, text="Verificar usuario", style="Accent.TButton", command=self.verify_user)
         self.verify_button.pack(pady=20, ipadx=10, ipady=5)
 
-        # Campos de nueva contraseña (ocultos hasta verificar)
-        self.new_password_label = ttk.Label(self.content_frame, text="Nueva contraseña:", font=("Segoe UI", 12), background="#e0e0e0")
-        self.new_password_entry = ttk.Entry(self.content_frame, show="*", font=("Segoe UI", 12))
-        self.conf_new_password_label = ttk.Label(self.content_frame, text="Confirmar nueva contraseña:", font=("Segoe UI", 12), background="#e0e0e0")
-        self.conf_new_password_entry = ttk.Entry(self.content_frame, show="*", font=("Segoe UI", 12))
+        # Campos para la nueva contraseña
+        self.new_password_label = ttk.Label(self.content_frame, text="Nueva contraseña:", font=label_font, background="#eef4fb")
+        self.new_password_entry = ttk.Entry(self.content_frame, show="*", style="Custom.TEntry", font=("Segoe UI", 12))
+        self.conf_new_password_label = ttk.Label(self.content_frame, text="Confirmar nueva contraseña:", font=label_font, background="#eef4fb")
+        self.conf_new_password_entry = ttk.Entry(self.content_frame, show="*", style="Custom.TEntry", font=("Segoe UI", 12))
         self.reset_button = ttk.Button(self.content_frame, text="Recuperar contraseña", style="Accent.TButton", command=self.reset_password)
 
-        # Botón de volver siempre abajo
-        self.back_button = ttk.Button(self, text="Volver", command=lambda: switch_frame("login"))
-        self.back_button.pack(side=tk.BOTTOM, pady=20, ipadx=10, ipady=5)
+        self.conf_new_password_entry.bind("<Return>", lambda e: self.reset_password())
+
+        self.back_button = ttk.Button(self.content_frame, text="Volver", style="Sec.TButton", command=lambda: switch_frame("login"))
+        self.back_button.pack(side="bottom", pady=(5, 10))
 
     def verify_user(self):
         user = self.user_entry.get().strip()
@@ -59,7 +99,7 @@ class RecoverFrame(tk.Frame):
 
             self.new_user = User(**result[0])
 
-            # Ocultar widgets del paso 1
+            # Ocultar widgets del usuario
             self.user_label.pack_forget()
             self.user_entry.pack_forget()
             self.verify_button.pack_forget()

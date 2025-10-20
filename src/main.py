@@ -31,7 +31,7 @@ class App(tk.Tk):
 
         # Crea la vista solicitada
         if name == "login":
-            self.geometry("400x400")
+            self.geometry("400x425")
             frame = login.LoginPanel(self.container, self.show_frame)
         elif name == "register":
             frame = register.RegisterFrame(self.container, self.show_frame)
