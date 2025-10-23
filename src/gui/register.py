@@ -15,7 +15,7 @@ class RegisterFrame(tk.Frame):
         style = ttk.Style()
         style.theme_use("clam")
 
-        # Botón principal (azul brillante)
+        # Botón principal
         style.configure(
             "Accent.TButton",
             font=("Segoe UI", 11, "bold"),
@@ -43,7 +43,7 @@ class RegisterFrame(tk.Frame):
                   foreground=[("active", "black"),
                               ("pressed", "white")])
 
-        # Entradas (campos de texto)
+        # Entradas
         style.configure(
             "Custom.TEntry",
             fieldbackground="#ffffff",
@@ -76,13 +76,13 @@ class RegisterFrame(tk.Frame):
         self.conf_entry = ttk.Entry(self, show="*", font=("Segoe UI", 12), style="Custom.TEntry")
         self.conf_entry.pack(pady=5, ipadx=50, ipady=5)
         
-        self.conf_entry.bind("<Return>", lambda e: self.register())
+        self.conf_entry.bind("<Return>", lambda e: self._register())
 
-        ttk.Button(self, text="Registrar", style="Accent.TButton", command=self.register).pack(pady=20, ipadx=10, ipady=5)
+        ttk.Button(self, text="Registrar", style="Accent.TButton", command=self._register).pack(pady=20, ipadx=10, ipady=5)
         ttk.Button(self, text="Volver", style="Sec.TButton", command=lambda: switch_frame("login")).pack(pady=(5, 10))
 
 
-    def register(self):
+    def _register(self):
         username = self.user_entry.get().strip()
         password = self.pass_entry.get().strip()
         confirm = self.conf_entry.get().strip()

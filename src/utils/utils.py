@@ -1,48 +1,63 @@
-import os
-from PIL import Image
-import zipfile
+import tkinter.ttk as ttk
 
-
-def convert_and_zip(input_folder, output_zip, webp_quality=80, resize=None):
+def get_style():
     """
-    Convierte todas las imágenes de input_folder a WebP, opcionalmente las redimensiona,
-    y las guarda en un ZIP.
+        Creates and configures custom styles for Tkinter GUI widgets using the `ttk` module.
 
-    Args:
-        input_folder (str): Carpeta con las imágenes originales (PNG/JPEG).
-        output_zip (str): Nombre del archivo ZIP de salida.
-        webp_quality (int): Calidad de compresión WebP (0-100).
-        resize (tuple o None): Redimensionar imágenes (width, height), o None para mantener tamaño.
+        This function defines styles for main buttons,
+        secondary buttons, and entry fields, for the program.
+
+        Returns
+        -------
+        style : ttk.Style
+            A configured `ttk.Style` object that can be applied to ttk widgets in the GUI.
+            The predefined styles include:
+
+            - **"Accent.TButton"**: Style for primary buttons.
+            - **"Sec.TButton"**: Style for secondary buttons.
+            - **"Custom.TEntry"**: Style for entry fields.
     """
-    temp_folder = "temp_webp"
-    os.makedirs(temp_folder, exist_ok=True)
+    # ----- Estilos -----
+    style = ttk.Style()
+    style.theme_use("clam")
 
-    print(f"Procesando imágenes en '{input_folder}'...")
+    # Botón principal
+    style.configure(
+        "Accent.TButton",
+        font=("Segoe UI", 11, "bold"),
+        foreground="#ffffff",
+        background="#4a90e2",
+        padding=6,
+        borderwidth=0
+    )
+    style.map(
+        "Accent.TButton",
+        background=[("active", "#357ABD"), ("pressed", "#2c5a92")],
+        foreground=[("active", "#ffffff")]
+    )
 
-    for filename in os.listdir(input_folder):
-        if filename.lower().endswith((".png", ".jpg", ".jpeg")):
-            input_path = os.path.join(input_folder, filename)
-            output_path = os.path.join(temp_folder, os.path.splitext(filename)[0] + ".webp")
+    style.configure(
+        "Sec.TButton",
+        foreground="#000000",
+        background="#e0e4eb",
+        padding=6,
+        borderwidth=0
+    )
 
-            img = Image.open(input_path)
-            if resize:
-                img = img.resize(resize)
-            img.save(output_path, "WEBP", quality=webp_quality)
+    style.map("Sec.TButton",
+              background=[("active", "#d3d7df"),
+                          ("pressed", "#c7cbd5")],
+              foreground=[("active", "black"),
+                          ("pressed", "white")])
 
-    # Crear ZIP
-    with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for filename in os.listdir(temp_folder):
-            zipf.write(os.path.join(temp_folder, filename), filename)
-
-    # Limpiar carpeta temporal
-    for f in os.listdir(temp_folder):
-        os.remove(os.path.join(temp_folder, f))
-    os.rmdir(temp_folder)
-
-    print(f"¡Listo! ZIP creado: '{output_zip}'")
-
-
-# ------------------ USO ------------------
-input_dataset = "dataset_original"  # Carpeta con las imágenes
-output_zip_file = "dataset_comprimido.zip"
-convert_and_zip(input_dataset, output_zip_file, webp_quality=80, resize=None)
+    # Entradas
+    style.configure(
+        "Custom.TEntry",
+        fieldbackground="#ffffff",
+        background="#ffffff",
+        foreground="#1d2d44",
+        bordercolor="#d9d9d9",
+        relief="flat",
+        insertcolor="#1d2d44"
+    )
+    return style

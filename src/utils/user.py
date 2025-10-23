@@ -24,8 +24,15 @@ class User:
 
     def to_dict(self):
         """
-        Convierte los datos de un usuario en un formato legible para la comunicacion con la base de datos.
-        :return: diccionario de los datos de un usuario
+        Converts a user's data into a dictionary format suitable for communication
+        with the database.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the user's data, where keys are the database
+            field names and values are the corresponding user attributes.
+
         """
         return {
             "id": self.id,

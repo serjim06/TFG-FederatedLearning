@@ -1,7 +1,9 @@
 import tkinter as tk
+from sqlite3 import DatabaseError
 from tkinter import ttk, messagebox
 from src.db import dbcon
 from src.utils.user import User
+import src.utils.utils as utils
 
 
 class LoginPanel(tk.Frame):
@@ -10,49 +12,7 @@ class LoginPanel(tk.Frame):
         self.configure(bg="#eef4fb")
         self.switch_frame = switch_frame
 
-        # ----- Estilos -----
-        style = ttk.Style()
-        style.theme_use("clam")
-
-        # Botón principal (azul brillante)
-        style.configure(
-            "Accent.TButton",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#ffffff",
-            background="#4a90e2",
-            padding=6,
-            borderwidth=0
-        )
-        style.map(
-            "Accent.TButton",
-            background=[("active", "#357ABD"), ("pressed", "#2c5a92")],
-            foreground=[("active", "#ffffff")]
-        )
-
-        style.configure(
-            "Sec.TButton",
-            foreground="#000000",
-            background="#e0e4eb",
-            padding=6,
-            borderwidth=0
-        )
-
-        style.map("Sec.TButton",
-                  background=[("active", "#d3d7df"),
-                              ("pressed", "#c7cbd5")],
-                  foreground=[("active", "black"),
-                              ("pressed", "white")])
-
-        # Entradas (campos de texto)
-        style.configure(
-            "Custom.TEntry",
-            fieldbackground="#ffffff",
-            background="#ffffff",
-            foreground="#1d2d44",
-            bordercolor="#d9d9d9",
-            relief="flat",
-            insertcolor="#1d2d44"
-        )
+        style = utils.get_style()
 
         # Texto general
         label_font = ("Segoe UI", 12)
@@ -89,14 +49,14 @@ class LoginPanel(tk.Frame):
             bg="#ffffff", fg="#1d2d44", cursor="hand2"
         )
         self.eye_button.place(relx=1.0, rely=0.5, x=-5, y=0, anchor="e")
-        self.eye_button.bind("<Button-1>", lambda e: self.toggle_password())
+        self.eye_button.bind("<Button-1>", lambda e: self._toggle_password())
 
         # Botón Entrar
         ttk.Button(
-            self, text="Iniciar sesión", style="Accent.TButton", command=self.login
+            self, text="Iniciar sesión", style="Accent.TButton", command=self._login
         ).pack(pady=20, ipadx=10, ipady=5)
 
-        self.password_entry.bind("<Return>", lambda e: self.login())
+        self.password_entry.bind("<Return>", lambda e: self._login())
 
         # Botones secundarios
         ttk.Button(
@@ -105,8 +65,8 @@ class LoginPanel(tk.Frame):
         ttk.Button(
             self, text="Olvidé mi contraseña", style="Sec.TButton", command=lambda: switch_frame("recover")).pack(pady=2)
 
-    def toggle_password(self):
-        """Muestra o oculta la contraseña"""
+    def _toggle_password(self):
+        """Shows or hides the password."""
         if self.show_pw:
             self.password_entry.config(show="*")
             self.show_pw = False
@@ -114,7 +74,7 @@ class LoginPanel(tk.Frame):
             self.password_entry.config(show="")
             self.show_pw = True
 
-    def login(self):
+    def _login(self):
         user = self.user_entry.get()
         passwd = self.password_entry.get()
 
@@ -123,10 +83,7 @@ class LoginPanel(tk.Frame):
             return
 
         try:
-            obj_user = dbcon.select("users", {
-                "username": user,
-                "password": passwd
-            })
+            obj_user = dbcon.command("select","users", {"username": user, "password": passwd})
 
             if not obj_user:
                 messagebox.showerror("Error", "Usuario o contraseña incorrectos")
@@ -135,6 +92,6 @@ class LoginPanel(tk.Frame):
             new_user = User(**obj_user[0])
             self.switch_frame("dashboard", new_user)
 
-        except Exception as e:
+        except ValueError or DatabaseError as e:
             messagebox.showerror("Error", str(e))
             return
