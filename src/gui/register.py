@@ -96,7 +96,7 @@ class RegisterFrame(tk.Frame):
             return
 
         try:
-            dbcon.insert("users", {
+            dbcon.command("insert","users", {
                 "username": username,
                 "password": password,
                 "role": "user"

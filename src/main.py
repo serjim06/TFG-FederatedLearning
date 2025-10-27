@@ -2,6 +2,7 @@ import tkinter as tk
 from src.gui import login, recover, register, dashboard, profile, modify
 from src.utils.user import User
 from src.db import dbcon
+from src.models.node import Node
 
 class App(tk.Tk):
     def __init__(self):
@@ -52,9 +53,21 @@ class App(tk.Tk):
         print("Desconectado de la DB")
         self.destroy()
 
+
+def test_node_create():
+    n_id = 7357
+
+    nodo = Node(n_id, True, 15)
+
+    nodo.add_dataset("/home/sergio/Documentos/TFG/Project/database/hola.csv")
+
+
+
 if __name__ == "__main__":
     user = None
     dbcon.connect("database.db")
+
+    test_node_create()
     app = App()
     app.mainloop()
 

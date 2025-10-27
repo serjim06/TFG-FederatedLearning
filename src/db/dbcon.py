@@ -9,8 +9,14 @@ database : Connection = None
 def connect(name):
     """
     Connects to a database
-    :param name:
-    :return: True if the connection is established
+    Args:
+        name: The name of the database.
+
+    Returns:
+        `True` if the database was created successfully.
+
+    Raises:
+        DatabaseError: if the database connection was not created.
     """
     try:
         global database
@@ -22,13 +28,14 @@ def connect(name):
 
         return True
     except sqlite3.OperationalError:
-        raise Exception("Error connecting to database")
+        raise DatabaseError("Error connecting to database")
 
 
 def disconnect():
     """
     Disconnects from the database
-    :return: None
+    Returns:
+        None
     """
 
     global database
@@ -53,14 +60,14 @@ def command(command: str, table, obj) -> Any:
              it will be ignored.
 
     Raises:
-        ValueError: If 'command' is not one of the allowed operations,
+        ValueError: If there is no obj, 'command' is not one of the allowed operations,
                     or if 'id' is missing for 'update' or 'delete'.
         DatabaseError:  If an error occurs with the database connection during
                         the execution of the command.
 
     Returns:
-        A dictionary containing the result of the operation, typically
-        including information like the number of rows affected.
+            For "select", returns the row that fits to the clauses in a dictionary. If no rows are found, returns an
+            empty dictionary. The other commands return None.
     """
     if obj is None:
         raise ValueError("There has to be an object to modify")
@@ -88,6 +95,7 @@ def _insert(table, obj:Dict[str,Any]) -> None:
         cursor = database.cursor()
         cursor.execute(sql_cmd, tuple(values))
         database.commit()
+        cursor.close()
     except sqlite3.IntegrityError:
         database.rollback()
         raise Exception("Error inserting object")
@@ -107,6 +115,7 @@ def _update(table, obj):
         list_val = list(obj.values())
         cursor.execute(sql_cmd, tuple(list_val[1:] + list_val[:1]))
         database.commit()
+        cursor.close()
     except sqlite3.IntegrityError:
         database.rollback()
         raise DatabaseError("Error updating object")
@@ -124,6 +133,7 @@ def _delete(table, obj):
         cursor = database.cursor()
         cursor.execute(sql_cmd)
         database.commit()
+        cursor.close()
     except sqlite3.IntegrityError:
         database.rollback()
         raise DatabaseError("Error deleting object")
@@ -151,7 +161,10 @@ def _select(table, obj):
         col_names = [desc[0] for desc in cursor.description]
 
         results = [dict(zip(col_names, row)) for row in result]
-
+        cursor.close()
         return results
     except sqlite3.IntegrityError:
         raise DatabaseError("Error selecting object")
+
+    finally:
+        cursor.close()

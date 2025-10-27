@@ -23,8 +23,8 @@ class ProfileFrame(tk.Frame):
                   background="#eef4fb").pack(pady=(30, 20))
 
         # Frame para la información
-        self.info_frame = tk.Frame(self, bg="#eef4fb", bd=0, relief=tk.RIDGE)
-        self.info_frame.pack(padx=50, pady=10, fill=tk.BOTH, expand=True)
+        self.info_frame = tk.Frame(self, bg="#eef4fb", bd=0, relief="ridge")
+        self.info_frame.pack(padx=50, pady=10, fill="both", expand=True)
 
         # ID
         ttk.Label(self.info_frame, text=f"ID: {uuid.UUID(bytes=self.usuario['id'])}",

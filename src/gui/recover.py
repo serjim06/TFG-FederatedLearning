@@ -30,7 +30,7 @@ class RecoverFrame(tk.Frame):
         self.user_entry = ttk.Entry(self.content_frame, style="Custom.TEntry", font=("Segoe UI", 12))
         self.user_entry.pack(pady=5, ipadx=50, ipady=5)
 
-        self.user_entry.bind("<Return>", lambda e: self.verify_user())
+        self.user_entry.bind("<Return>", lambda e: self._verify_user())
 
         self.verify_button = ttk.Button(self.content_frame, text="Verificar usuario", style="Accent.TButton", command=self._verify_user)
         self.verify_button.pack(pady=20, ipadx=10, ipady=5)
@@ -40,9 +40,9 @@ class RecoverFrame(tk.Frame):
         self.new_password_entry = ttk.Entry(self.content_frame, show="*", style="Custom.TEntry", font=("Segoe UI", 12))
         self.conf_new_password_label = ttk.Label(self.content_frame, text="Confirmar nueva contraseña:", font=label_font, background="#eef4fb")
         self.conf_new_password_entry = ttk.Entry(self.content_frame, show="*", style="Custom.TEntry", font=("Segoe UI", 12))
-        self.reset_button = ttk.Button(self.content_frame, text="Recuperar contraseña", style="Accent.TButton", command=self.reset_password)
+        self.reset_button = ttk.Button(self.content_frame, text="Recuperar contraseña", style="Accent.TButton", command=self._reset_password)
 
-        self.conf_new_password_entry.bind("<Return>", lambda e: self.reset_password())
+        self.conf_new_password_entry.bind("<Return>", lambda e: self._reset_password())
 
         self.back_button = ttk.Button(self.content_frame, text="Volver", style="Sec.TButton", command=lambda: switch_frame("login"))
         self.back_button.pack(side="bottom", pady=(5, 10))
@@ -79,7 +79,7 @@ class RecoverFrame(tk.Frame):
 
 
 
-    def reset_password(self):
+    def _reset_password(self):
         new_pass = self.new_password_entry.get()
         conf_pass = self.conf_new_password_entry.get()
 

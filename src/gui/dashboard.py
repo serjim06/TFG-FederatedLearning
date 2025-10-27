@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 import src.utils.utils as utils
 
 class DashboardFrame(tk.Frame):
