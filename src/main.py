@@ -54,20 +54,9 @@ class App(tk.Tk):
         self.destroy()
 
 
-def test_node_create():
-    n_id = 7357
-
-    nodo = Node(n_id, True, 15)
-
-    nodo.add_dataset("/home/sergio/Documentos/TFG/Project/database/hola.csv")
-
-
-
 if __name__ == "__main__":
     user = None
     dbcon.connect("database.db")
-
-    test_node_create()
     app = App()
     app.mainloop()
 

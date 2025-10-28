@@ -2,10 +2,7 @@ import tkinter.ttk as ttk
 
 def get_style():
     """
-        Creates and configures custom styles for Tkinter GUI widgets using the `ttk` module.
-
-        This function defines styles for main buttons,
-        secondary buttons, and entry fields, for the program.
+        Creates a consistent style for every GUI
 
         Returns
         -------

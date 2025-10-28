@@ -78,7 +78,7 @@ class LoginPanel(tk.Frame):
         user = self.user_entry.get()
         passwd = self.password_entry.get()
 
-        if not(user or passwd):
+        if not user or not passwd:
             messagebox.showerror("Error", "Rellena los campos")
             return
 
@@ -92,6 +92,6 @@ class LoginPanel(tk.Frame):
             new_user = User(**obj_user[0])
             self.switch_frame("dashboard", new_user)
 
-        except ValueError or DatabaseError as e:
+        except (ValueError, DatabaseError) as e:
             messagebox.showerror("Error", str(e))
             return

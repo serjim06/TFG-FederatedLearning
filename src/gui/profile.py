@@ -67,8 +67,8 @@ class ProfileFrame(tk.Frame):
         self.logout_button = ttk.Button(self, text="Cerrar sesión", style="Accent.TButton", command=self._cerrar_sesion)
         self.logout_button.pack(pady=15, ipadx=15, ipady=5)
 
-        self.logout_button = ttk.Button(self, text="Modificar perfil", style="Accent.TButton", command=lambda: self.switch_frame("modify", self.usuario))
-        self.logout_button.pack(pady=15, ipadx=15, ipady=5)
+        self.modify_button = ttk.Button(self, text="Modificar perfil", style="Accent.TButton", command=lambda: self.switch_frame("modify", self.usuario))
+        self.modify_button.pack(pady=15, ipadx=15, ipady=5)
 
         ttk.Button(self, text="Volver", style="Sec.TButton", command=lambda: self.switch_frame("dashboard",self.usuario)).pack(side="bottom", pady=(5, 10))
 

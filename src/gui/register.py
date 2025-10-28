@@ -1,6 +1,7 @@
 import tkinter as tk
+from sqlite3 import DatabaseError
 from tkinter import ttk, messagebox
-
+import src.utils.utils as utils
 from src.db import dbcon
 
 
@@ -11,48 +12,7 @@ class RegisterFrame(tk.Frame):
         self.configure(bg="#eef4fb")
 
 
-        # ----- Estilos -----
-        style = ttk.Style()
-        style.theme_use("clam")
-
-        # Botón principal
-        style.configure(
-            "Accent.TButton",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#ffffff",
-            background="#4a90e2",
-            padding=6,
-            borderwidth=0
-        )
-        style.map(
-            "Accent.TButton",
-            background=[("active", "#357ABD"), ("pressed", "#2c5a92")],
-            foreground=[("active", "#ffffff")]
-        )
-        style.configure(
-            "Sec.TButton",
-            foreground="#000000",
-            background="#e0e4eb",
-            padding=6,
-            borderwidth=0
-        )
-
-        style.map("Sec.TButton",
-                  background=[("active", "#d3d7df"),
-                              ("pressed", "#c7cbd5")],
-                  foreground=[("active", "black"),
-                              ("pressed", "white")])
-
-        # Entradas
-        style.configure(
-            "Custom.TEntry",
-            fieldbackground="#ffffff",
-            background="#ffffff",
-            foreground="#1d2d44",
-            bordercolor="#d9d9d9",
-            relief="flat",
-            insertcolor="#1d2d44"
-        )
+        style = utils.get_style()
 
         # Texto general
         label_font = ("Segoe UI", 12)
@@ -104,6 +64,6 @@ class RegisterFrame(tk.Frame):
 
             messagebox.showinfo("Éxito","Usuario registrado correctamente")
             self.switch_frame("login")
-        except Exception as e:
+        except (ValueError, DatabaseError) as e:
             messagebox.showerror("Error", str(e))
             return

@@ -76,7 +76,7 @@ class ModifyPanel(tk.Frame):
         new_user = User(self.usuario['id'], self.usuario['username'], self.usuario['password'], self.usuario['role'])
 
         if not user or not passwd:
-            messagebox.showerror("Los campos no pueden estar vacíos")
+            messagebox.showerror("Error","Los campos no pueden estar vacíos")
             return
 
         if user != self.usuario['username']:
@@ -93,6 +93,6 @@ class ModifyPanel(tk.Frame):
 
             self.switch_frame("modified_profile", new_user)
 
-        except ValueError or DatabaseError as e:
+        except (ValueError, DatabaseError) as e:
             messagebox.showerror("Error", str(e))
             return
