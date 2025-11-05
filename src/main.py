@@ -1,5 +1,5 @@
 import tkinter as tk
-from src.gui import login, recover, register, dashboard, profile, modify
+from src.gui import login, recover, register, dashboard, profile, modify, node_list
 from src.utils.user import User
 from src.db import dbcon
 from src.models.node import Node
@@ -34,7 +34,8 @@ class App(tk.Tk):
             frame = recover.RecoverFrame(self.container, self.show_frame)
         elif name == "dashboard":
             self.geometry("600x600")
-            self.usuario_actual = usuario
+            if usuario is not None:
+                self.usuario_actual = usuario
             frame = dashboard.DashboardFrame(self.container, self.show_frame, self.usuario_actual)
         elif name == "profile":
             frame = profile.ProfileFrame(self.container, self.show_frame, usuario)
@@ -43,7 +44,9 @@ class App(tk.Tk):
         elif name == "modified_profile":
             self.usuario_actual = usuario
             frame = profile.ProfileFrame(self.container, self.show_frame, usuario)
-
+        elif name == "nodes":
+            self.geometry("800x600")
+            frame = node_list.NodeListFrame(self.container, self.show_frame)
 
         self.frames[name] = frame
         frame.pack(fill="both", expand=True)

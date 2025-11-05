@@ -26,14 +26,21 @@ class DashboardFrame(tk.Frame):
         # Botón Ver Cuenta
         ttk.Button(self.content_frame, text="Ver mi cuenta", style="Accent.TButton",
                    command=self._ver_cuenta).pack(pady=15, ipadx=20, ipady=10)
-
-        # Botón Ver Proyectos
-        ttk.Button(self.content_frame, text="Ver mis proyectos", style="Accent.TButton",
-                   command=self._ver_proyectos).pack(pady=15, ipadx=20, ipady=10)
+        if self.usuario['role'] == 'user':
+            # Botón Ver Proyectos
+            ttk.Button(self.content_frame, text="Ver mis proyectos", style="Accent.TButton",
+                       command=self._ver_proyectos).pack(pady=15, ipadx=20, ipady=10)
+        else:
+            # Botón Ver Nodos
+            ttk.Button(self.content_frame, text="Ver nodos", style="Accent.TButton",
+                       command=self._ver_nodos).pack(pady=15, ipadx=20, ipady=10)
 
     def _ver_cuenta(self):
         self.switch_frame("profile", self.usuario)
 
     def _ver_proyectos(self):
         raise NotImplementedError()
+
+    def _ver_nodos(self):
+        self.switch_frame("nodes")
 
