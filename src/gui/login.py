@@ -4,7 +4,8 @@ from tkinter import ttk, messagebox
 from src.db import dbcon
 from src.utils.user import User
 import src.utils.utils as utils
-
+import src.utils.icons.image_finder as image_finder
+from PIL import ImageTk, Image
 
 class LoginPanel(tk.Frame):
     def __init__(self, parent, switch_frame):
@@ -64,6 +65,7 @@ class LoginPanel(tk.Frame):
 
         ttk.Button(
             self, text="Olvidé mi contraseña", style="Sec.TButton", command=lambda: switch_frame("recover")).pack(pady=2)
+        
 
     def _toggle_password(self):
         """Shows or hides the password."""

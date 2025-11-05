@@ -45,7 +45,7 @@ class App(tk.Tk):
             self.usuario_actual = usuario
             frame = profile.ProfileFrame(self.container, self.show_frame, usuario)
         elif name == "nodes":
-            self.geometry("800x600")
+            self.geometry("1000x600")
             frame = node_list.NodeListFrame(self.container, self.show_frame)
 
         self.frames[name] = frame

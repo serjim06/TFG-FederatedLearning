@@ -1,8 +1,15 @@
+import os
+from sqlite3 import DatabaseError
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
+import uuid
 import src.utils.utils as utils
-
-
+from src.models.node import Node
+import src.db.dbcon as dbcon
+import src.utils.icons.image_finder as image_finder
+from pathlib import Path
+from PIL import ImageTk, Image
 class NodeListFrame(tk.Frame):
     def __init__(self, parent, switch_frame):
             super().__init__(parent)
@@ -59,13 +66,15 @@ class NodeListFrame(tk.Frame):
             scroll_y = ttk.Scrollbar(container, orient="vertical")
             scroll_x = ttk.Scrollbar(container, orient="horizontal")
 
-            columnas = ("Node ID", "Valid", "Project ID", "Local Dataset Path")
+            columnas = ("Node ID", "Valid", "Local Dataset Path")
 
             self.tree = ttk.Treeview(container,
                                      columns=columnas,
-                                     show="headings",
+                                     show=("tree","headings"),
                                      yscrollcommand=scroll_y.set,
                                      xscrollcommand=scroll_x.set)
+            self.tree.column("#0", width=48, stretch=tk.NO)
+            self.tree.update_idletasks()
             self.tree.grid(row=0, column=0, sticky="nsew")
 
             scroll_y.config(command=self.tree.yview)
@@ -76,46 +85,96 @@ class NodeListFrame(tk.Frame):
             container.columnconfigure(0, weight=1)
             container.rowconfigure(0, weight=1)
 
-            widths = [120, 80, 120, 300]
+            widths = [315, 50, 300]
             for i, col in enumerate(columnas):
                 self.tree.heading(col, text=col, anchor="w")
-                self.tree.column(col, width=widths[i], anchor="w")
+                self.tree.column(col, width=widths[i], anchor="w", stretch=tk.NO if i != 2 else tk.YES)
 
 
             # ======= PANEL INFERIOR =======
             bottom = tk.Frame(self, bg="#eef4fb")
             bottom.pack(pady=15)
 
-            self.entries = {}
-            for i, col in enumerate(columnas):
-                ttk.Label(bottom, text=col, font=("Segoe UI", 10),
-                          background="#eef4fb").grid(row=0, column=i, padx=5)
-                entry = ttk.Entry(bottom, font=("Segoe UI", 10), width=18)
-                entry.grid(row=1, column=i, padx=5, pady=5)
-                self.entries[col] = entry
-
             # ======= BOTONES =======
             button_frame = tk.Frame(self, bg="#eef4fb")
             button_frame.pack(pady=10)
 
             ttk.Button(button_frame, text="Agregar Nodo",
-                       style="Accent.TButton", command=self.agregar_nodo) \
+                       style="Accent.TButton", command=self._agregar_nodo) \
                 .grid(row=0, column=0, padx=5)
             ttk.Button(button_frame, text="Eliminar Seleccionado",
-                       style="Sec.TButton", command=self.eliminar_nodo) \
+                       style="Sec.TButton", command=self._eliminar_nodo) \
                 .grid(row=0, column=1, padx=5)
             ttk.Button(button_frame, text="Volver",
                        style="Sec.TButton",
                        command=lambda: self.switch_frame("dashboard")) \
                 .grid(row=0, column=2, padx=5)
+                
+            try:
+                nodes = dbcon.command("select", "nodes", {"id": "*"})
+            except (ValueError, DatabaseError) as e:
+                messagebox.showerror("Error", str(e))
 
-    def agregar_nodo(self):
-        valores = [self.entries[col].get().strip() or "NULL" for col in self.entries]
-        self.tree.insert("", tk.END, values=valores)
-        for entry in self.entries.values():
-            entry.delete(0, tk.END)
+            self.layers = {}
 
-    def eliminar_nodo(self):
+            n_img = Image.open(image_finder.find_image("node"))
+            p_img = Image.open(image_finder.find_image("project"))
+
+            self.project_image = ImageTk.PhotoImage(p_img)
+            self.node_image = ImageTk.PhotoImage(n_img)
+
+            for node_data in nodes:
+                if node_data["project_id"] and str(uuid.UUID(bytes=node_data["project_id"])) not in self.layers:
+                    self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] = self.tree.insert("", "end", 
+                                                                                text=str(uuid.UUID(bytes=node_data["project_id"])),
+                                                                                image=self.project_image)
+
+                local_dataset_path = node_data["local_dataset_path"]
+                normalized_path = Path(local_dataset_path).resolve()
+                local_dataset_path = str(normalized_path)
+                print( local_dataset_path)
+                indice_dataset = local_dataset_path.index("database/")
+                local_dataset_path = local_dataset_path[indice_dataset:]
+                local_dataset_path = "./" + local_dataset_path
+                self.tree.insert(self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] if node_data["project_id"] else "", "end", values=(
+                    str(uuid.UUID(bytes=node_data["id"])),
+                    node_data["valid"],
+                    local_dataset_path
+                ), image=self.node_image)
+
+            self.tree.update_idletasks()
+    def _agregar_nodo(self):
+        try:
+            node_data = dbcon.command("insert", "nodes", {"valid": 0, "project_id": "", "local_dataset_path": ""})
+            
+            node = Node(node_data[0], node_data[1], node_data[2])
+            
+            dbcon.command("update", "nodes", {"id":node.id, "local_dataset_path": node.local_dataset_path})
+        except (ValueError, DatabaseError) as e:
+            messagebox.showerror("Error", str(e))
+            return
+        
+        self.tree.insert("", "end", values=(
+            str(uuid.UUID(bytes=node.id)),
+            node.valid,
+            str(uuid.UUID(bytes=node.project_id)) if node.project_id else "",
+            node.local_dataset_path
+        ))
+    
+
+    def _eliminar_nodo(self):
         seleccionado = self.tree.selection()
-        for item in seleccionado:
-            self.tree.delete(item)
+        
+        if seleccionado:
+            for item in seleccionado:
+                item_id = item
+                values = self.tree.item(item_id, "values")
+                node_id = uuid.UUID(values[0]).bytes
+                try:
+                    dbcon.command("delete", "nodes", {"id": node_id})
+                except (ValueError, DatabaseError) as e:
+                    messagebox.showerror("Error", str(e))
+                    return
+
+            for item in seleccionado:
+                self.tree.delete(item)

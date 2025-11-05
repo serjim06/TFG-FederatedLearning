@@ -1,10 +1,11 @@
 import sqlite3
 import uuid
+import re
 from sqlite3 import Connection, DatabaseError
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-database : Connection = None
+database: Optional[Connection] = None
 
 def connect(name):
     """
@@ -73,16 +74,18 @@ def command(command: str, table, obj) -> Any:
         raise ValueError("There has to be an object to modify")
 
     if command == "insert":
-        _insert(table, obj)
+       return _insert(table, obj)
     elif command == "update":
         _update(table, obj)
     elif command == "select":
         return _select(table, obj)
+    elif command == "delete":
+        _delete(table, obj)
     else:
         raise ValueError("Invalid command")
 
 
-def _insert(table, obj:Dict[str,Any]) -> None:
+def _insert(table, obj:Dict[str,Any]):
     if "id" in obj:
         obj.pop("id")
     obj_id = uuid.uuid4().bytes
@@ -96,9 +99,10 @@ def _insert(table, obj:Dict[str,Any]) -> None:
         cursor.execute(sql_cmd, tuple(values))
         database.commit()
         cursor.close()
+        return values
     except sqlite3.IntegrityError:
         database.rollback()
-        raise Exception("Error inserting object")
+        raise DatabaseError("Error inserting object")
     finally:
         cursor.close()
 
@@ -127,11 +131,11 @@ def _delete(table, obj):
         raise ValueError("There is no id in the object")
 
     obj_id = obj['id']
-    sql_cmd = f"DELETE FROM {table} WHERE id = {obj_id}"
+    sql_cmd = f"DELETE FROM {table} WHERE id = ?"
 
     try:
         cursor = database.cursor()
-        cursor.execute(sql_cmd)
+        cursor.execute(sql_cmd, (obj_id,))
         database.commit()
         cursor.close()
     except sqlite3.IntegrityError:
@@ -141,22 +145,37 @@ def _delete(table, obj):
         cursor.close()
 
 def _select(table, obj):
+    # Build filter object, but treat id == '*' as a request for all rows
+    # (i.e. no WHERE clause).
     clauses = []
     values = []
 
-    for col, val in obj.items():
-        clauses.append(f"({col}) = ?")
+    # Remove any id=='*' from filters so we can handle select-all
+    filter_obj = {k: v for k, v in obj.items() if not (k == "id" and v == "*")}
+
+    for col, val in filter_obj.items():
+        # basic column name validation to avoid SQL injection via column names
+        if not re.match(r'^[A-Za-z_]\w*$', col):
+            raise ValueError(f"Invalid column name: {col}")
+        clauses.append(f"{col} = ?")
         values.append(val)
 
-    where_clause = "AND ".join(clauses)
-
-    sql_cmd = f"SELECT * FROM {table} WHERE {where_clause}"
+    if clauses:
+        where_clause = " AND ".join(clauses)
+        sql_cmd = f"SELECT * FROM {table} WHERE {where_clause}"
+    else:
+        # no filters -> select all rows
+        sql_cmd = f"SELECT * FROM {table}"
 
     try:
         cursor = database.cursor()
-        cursor.execute(sql_cmd, tuple(values))
+        if values:
+            cursor.execute(sql_cmd, tuple(values))
+        else:
+            cursor.execute(sql_cmd)
         result = cursor.fetchall()
         if not result:
+            cursor.close()
             return result
         col_names = [desc[0] for desc in cursor.description]
 
@@ -165,6 +184,8 @@ def _select(table, obj):
         return results
     except sqlite3.IntegrityError:
         raise DatabaseError("Error selecting object")
-
     finally:
-        cursor.close()
+        try:
+            cursor.close()
+        except Exception:
+            pass

@@ -1,5 +1,6 @@
 import os
 import shutil
+import uuid
 
 class Node:
     def __init__(self, id, valid, project_id):
@@ -7,7 +8,7 @@ class Node:
         self.valid = valid
         self.project_id = project_id
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        self.local_dataset_path = os.path.join(BASE_DIR, "..", "..", "database", "datasets" , "node_" + str(id))
+        self.local_dataset_path = os.path.join(BASE_DIR, "..", "..", "database", "datasets" , "node_" + str(uuid.UUID(bytes=id)))
 
 
 
