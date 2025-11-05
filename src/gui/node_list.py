@@ -66,14 +66,14 @@ class NodeListFrame(tk.Frame):
             scroll_y = ttk.Scrollbar(container, orient="vertical")
             scroll_x = ttk.Scrollbar(container, orient="horizontal")
 
-            columnas = ("Node ID", "Valid", "Local Dataset Path")
+            columnas = ("ID", "Valid", "Local Dataset Path")
 
             self.tree = ttk.Treeview(container,
                                      columns=columnas,
                                      show=("tree","headings"),
                                      yscrollcommand=scroll_y.set,
                                      xscrollcommand=scroll_x.set)
-            self.tree.column("#0", width=48, stretch=tk.NO)
+            self.tree.column("#0", width=100, stretch=tk.NO)
             self.tree.update_idletasks()
             self.tree.grid(row=0, column=0, sticky="nsew")
 
@@ -123,20 +123,16 @@ class NodeListFrame(tk.Frame):
             self.project_image = ImageTk.PhotoImage(p_img)
             self.node_image = ImageTk.PhotoImage(n_img)
 
+            # TODO: cambiar proyectos? poner en ID y en #0 el nombre del proyecto (¿Tamaño?)
             for node_data in nodes:
                 if node_data["project_id"] and str(uuid.UUID(bytes=node_data["project_id"])) not in self.layers:
-                    self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] = self.tree.insert("", "end", 
-                                                                                text=str(uuid.UUID(bytes=node_data["project_id"])),
+                    self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] = self.tree.insert("", "end",
+                                                                                text="Project:",
+                                                                                values=(str(uuid.UUID(bytes=node_data["project_id"])), "", ""),
                                                                                 image=self.project_image)
 
-                local_dataset_path = node_data["local_dataset_path"]
-                normalized_path = Path(local_dataset_path).resolve()
-                local_dataset_path = str(normalized_path)
-                print( local_dataset_path)
-                indice_dataset = local_dataset_path.index("database/")
-                local_dataset_path = local_dataset_path[indice_dataset:]
-                local_dataset_path = "./" + local_dataset_path
-                self.tree.insert(self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] if node_data["project_id"] else "", "end", values=(
+                local_dataset_path = self._parse_path(node_data["local_dataset_path"])
+                self.tree.insert(self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] if node_data["project_id"] else "",0, values=(
                     str(uuid.UUID(bytes=node_data["id"])),
                     node_data["valid"],
                     local_dataset_path
@@ -154,13 +150,22 @@ class NodeListFrame(tk.Frame):
             messagebox.showerror("Error", str(e))
             return
         
-        self.tree.insert("", "end", values=(
+        self.tree.insert("", 0, values=(
             str(uuid.UUID(bytes=node.id)),
             node.valid,
-            str(uuid.UUID(bytes=node.project_id)) if node.project_id else "",
-            node.local_dataset_path
-        ))
+            self._parse_path(node.local_dataset_path)
+        ), image=self.node_image)
+        self.tree.update_idletasks()
     
+    
+    def _parse_path(self, path: str) -> str:
+        # Normaliza el path del dataset local
+        normalized_path = Path(path).resolve()
+        path = str(normalized_path)
+        indice_dataset = path.index("database/")
+        path = path[indice_dataset:]
+        path = "./" + path
+        return path
 
     def _eliminar_nodo(self):
         seleccionado = self.tree.selection()

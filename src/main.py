@@ -56,7 +56,6 @@ class App(tk.Tk):
         print("Desconectado de la DB")
         self.destroy()
 
-
 if __name__ == "__main__":
     user = None
     dbcon.connect("database.db")
