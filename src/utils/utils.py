@@ -57,4 +57,23 @@ def get_style():
         relief="flat",
         insertcolor="#1d2d44"
     )
+    
+    style.configure("Treeview",
+                            background="#ffffff",
+                            foreground="#2b2b2b",
+                            rowheight=26,
+                            fieldbackground="#ffffff",
+                            font=("Segoe UI", 11),
+                            borderwidth=0)
+    style.configure("Treeview.Heading",
+                            background="#f3f6fa",
+                            foreground="#444",
+                            relief="flat",
+                            font=("Segoe UI", 10))
+    style.map("Treeview.Heading",
+                      background=[("active", "#e5ebf3")])
+    style.map("Treeview",
+                      background=[("selected", "#e0e9f7")],
+                      foreground=[("selected", "#000")])
+    
     return style

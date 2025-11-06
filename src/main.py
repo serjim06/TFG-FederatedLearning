@@ -1,4 +1,5 @@
 import tkinter as tk
+import uuid
 from src.gui import login, recover, register, dashboard, profile, modify, node_list
 from src.utils.user import User
 from src.db import dbcon
@@ -56,9 +57,39 @@ class App(tk.Tk):
         print("Desconectado de la DB")
         self.destroy()
 
+def _create_test_project():
+    prj = {
+        "name": "proyecto",
+        "description": "Descripción del proyecto de prueba",
+        "uid": uuid.uuid4().bytes,
+        "parameters": "{afds: 1234, test: true}",
+        "metrics": "{accuracy: 0.95, loss: 0.05}",  
+        "aggregation_strategy": "mean"
+    }
+    
+    try:
+        dbcon.command("insert", "projects", prj)
+        print("Proyecto de prueba creado.")
+        proyecto = dbcon.command("select", "projects", {"name": "proyecto"})
+    except Exception as e:
+        print(f"No se pudo crear el proyecto de prueba: {e}")
+        
+    nodo = {
+        "valid": 1,
+        "project_id": proyecto[0]["id"],
+        "local_dataset_path": "/database/dataset/path/to/dataset"
+    }
+    
+    try:
+        dbcon.command("insert", "nodes", nodo)
+        dbcon.command("insert", "nodes", nodo)
+    except Exception as e:
+        print(f"No se pudo crear el nodo de prueba: {e}")
+
 if __name__ == "__main__":
     user = None
     dbcon.connect("database.db")
+    _create_test_project()
     app = App()
     app.mainloop()
 

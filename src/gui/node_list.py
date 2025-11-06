@@ -10,6 +10,7 @@ import src.db.dbcon as dbcon
 import src.utils.icons.image_finder as image_finder
 from pathlib import Path
 from PIL import ImageTk, Image
+
 class NodeListFrame(tk.Frame):
     def __init__(self, parent, switch_frame):
             super().__init__(parent)
@@ -17,43 +18,8 @@ class NodeListFrame(tk.Frame):
             self.switch_frame = switch_frame
 
             # ======= ESTILO GENERAL =======
-            style = ttk.Style()
-            style.theme_use("clam")
-
-            style.configure("Treeview",
-                            background="#ffffff",
-                            foreground="#2b2b2b",
-                            rowheight=26,
-                            fieldbackground="#ffffff",
-                            font=("Segoe UI", 11),
-                            borderwidth=0)
-            style.configure("Treeview.Heading",
-                            background="#f3f6fa",
-                            foreground="#444",
-                            relief="flat",
-                            font=("Segoe UI", 10))
-            style.map("Treeview.Heading",
-                      background=[("active", "#e5ebf3")])
-            style.map("Treeview",
-                      background=[("selected", "#e0e9f7")],
-                      foreground=[("selected", "#000")])
-
-            style.configure("Accent.TButton",
-                            background="#0078d7",
-                            foreground="white",
-                            font=("Segoe UI", 10, "bold"),
-                            padding=(10, 5))
-            style.map("Accent.TButton",
-                      background=[("active", "#005fa3")])
-
-            style.configure("Sec.TButton",
-                            background="#f2f2f2",
-                            foreground="#333",
-                            font=("Segoe UI", 10),
-                            padding=(10, 5))
-            style.map("Sec.TButton",
-                      background=[("active", "#e0e0e0")])
-
+            style = utils.get_style()
+            
             # ======= TÍTULO =======
             title = ttk.Label(self, text="Lista de Nodos", font=("Segoe UI", 22, "bold"),
                               background="#eef4fb", foreground="#2b2b2b")
@@ -72,7 +38,8 @@ class NodeListFrame(tk.Frame):
                                      columns=columnas,
                                      show=("tree","headings"),
                                      yscrollcommand=scroll_y.set,
-                                     xscrollcommand=scroll_x.set)
+                                     xscrollcommand=scroll_x.set,
+                                     style="Treeview")
             self.tree.column("#0", width=100, stretch=tk.NO)
             self.tree.update_idletasks()
             self.tree.grid(row=0, column=0, sticky="nsew")
@@ -84,11 +51,12 @@ class NodeListFrame(tk.Frame):
 
             container.columnconfigure(0, weight=1)
             container.rowconfigure(0, weight=1)
+        
 
-            widths = [315, 50, 300]
+            widths = [330, 55, 600]
             for i, col in enumerate(columnas):
                 self.tree.heading(col, text=col, anchor="w")
-                self.tree.column(col, width=widths[i], anchor="w", stretch=tk.NO if i != 2 else tk.YES)
+                self.tree.column(col, width=widths[i], anchor="w", stretch=tk.YES)
 
 
             # ======= PANEL INFERIOR =======
@@ -123,7 +91,6 @@ class NodeListFrame(tk.Frame):
             self.project_image = ImageTk.PhotoImage(p_img)
             self.node_image = ImageTk.PhotoImage(n_img)
 
-            # TODO: cambiar proyectos? poner en ID y en #0 el nombre del proyecto (¿Tamaño?)
             for node_data in nodes:
                 if node_data["project_id"] and str(uuid.UUID(bytes=node_data["project_id"])) not in self.layers:
                     self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] = self.tree.insert("", "end",
@@ -156,6 +123,7 @@ class NodeListFrame(tk.Frame):
             self._parse_path(node.local_dataset_path)
         ), image=self.node_image)
         self.tree.update_idletasks()
+        messagebox.showinfo("Éxito", "Nodo agregado con éxito.")  
     
     
     def _parse_path(self, path: str) -> str:
@@ -169,17 +137,32 @@ class NodeListFrame(tk.Frame):
 
     def _eliminar_nodo(self):
         seleccionado = self.tree.selection()
-        
+        canceled = []
         if seleccionado:
             for item in seleccionado:
                 item_id = item
+                layer_id = self.tree.parent(item_id)
+                if layer_id and not messagebox.askyesno("Confirmar Eliminación", f"El nodo con id {self.tree.item(item_id, 'values')[0]         } pertenece a un proyecto activo de un usuario. ¿Estás seguro de que deseas eliminar este nodo?"):
+                    canceled.append(item)
+                    continue
+            
                 values = self.tree.item(item_id, "values")
                 node_id = uuid.UUID(values[0]).bytes
                 try:
                     dbcon.command("delete", "nodes", {"id": node_id})
                 except (ValueError, DatabaseError) as e:
                     messagebox.showerror("Error", str(e))
-                    return
-
-            for item in seleccionado:
+                    #return
+                
+            self._update_tree_after_delete(seleccionado, canceled)
+        else:
+            messagebox.showinfo("Información", "No hay ningún nodo seleccionado para eliminar.")
+            
+    def _update_tree_after_delete(self, seleccionado, canceled):
+        for item in seleccionado:
+                if item in canceled:
+                    continue
+                layer_id = self.tree.parent(item)
                 self.tree.delete(item)
+                if layer_id and len(self.tree.get_children(layer_id)) == 0:
+                    self.tree.delete(layer_id)
