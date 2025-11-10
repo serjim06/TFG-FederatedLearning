@@ -10,6 +10,7 @@ import src.db.dbcon as dbcon
 import src.utils.icons.image_finder as image_finder
 from pathlib import Path
 from PIL import ImageTk, Image
+from TkToolTip import ToolTip
 
 class NodeListFrame(tk.Frame):
     def __init__(self, parent, switch_frame):
@@ -21,9 +22,27 @@ class NodeListFrame(tk.Frame):
             style = utils.get_style()
             
             # ======= TÍTULO =======
-            title = ttk.Label(self, text="Lista de Nodos", font=("Segoe UI", 22, "bold"),
-                              background="#eef4fb", foreground="#2b2b2b")
-            title.pack(pady=(20, 10))
+            #title = ttk.Label(self, text="Lista de Nodos", font=("Segoe UI", 22, "bold"),
+            #                  background="#eef4fb", foreground="#2b2b2b")
+            #title.pack(pady=(20, 10))
+            
+            # ======= TOOLBOX =======
+            toolbox = tk.Frame(self, bg="#eef4fb", relief="raised", bd=2)
+            toolbox.pack(side="top", fill="x")
+            
+            self.add_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("add")).resize((24,24)))
+            self.delete_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("delete")).resize((24,24)))
+
+            self.add_button = ttk.Button(toolbox, image=self.add_image, text="", compound="left",
+                       command=self._agregar_nodo, width=2, style="Sec.TButton")
+            self.add_button.pack(side="left", padx=5, pady=5)
+            self.delete_button = ttk.Button(toolbox, image=self.delete_image, text="", compound="left",
+                       command=self._eliminar_nodo, width=2, style="Sec.TButton")
+            self.delete_button.pack(side="left", padx=5, pady=5)
+            self.delete_button.state(["disabled"])
+            
+            ToolTip(self.add_button, text="Agregar un nuevo nodo a la base de datos", delay=0.5)
+            ToolTip(self.delete_button, text="Eliminar el nodo seleccionado de la base de datos", delay=0.5)
 
             # ======= TABLA DE NODOS =======
             container = ttk.Frame(self)
@@ -43,6 +62,9 @@ class NodeListFrame(tk.Frame):
             self.tree.column("#0", width=100, stretch=tk.NO)
             self.tree.update_idletasks()
             self.tree.grid(row=0, column=0, sticky="nsew")
+            
+            self.tree.bind("<<TreeviewSelect>>", lambda event: 
+                self.delete_button.state(["!disabled"]) if self.tree.selection() else self.delete_button.state(["disabled"]))
 
             scroll_y.config(command=self.tree.yview)
             scroll_y.grid(row=0, column=1, sticky="ns")
@@ -58,54 +80,10 @@ class NodeListFrame(tk.Frame):
                 self.tree.heading(col, text=col, anchor="w")
                 self.tree.column(col, width=widths[i], anchor="w", stretch=tk.YES)
 
+            # Cargar datos iniciales                
+            self._initialize_node_list()
 
-            # ======= PANEL INFERIOR =======
-            bottom = tk.Frame(self, bg="#eef4fb")
-            bottom.pack(pady=15)
-
-            # ======= BOTONES =======
-            button_frame = tk.Frame(self, bg="#eef4fb")
-            button_frame.pack(pady=10)
-
-            ttk.Button(button_frame, text="Agregar Nodo",
-                       style="Accent.TButton", command=self._agregar_nodo) \
-                .grid(row=0, column=0, padx=5)
-            ttk.Button(button_frame, text="Eliminar Seleccionado",
-                       style="Sec.TButton", command=self._eliminar_nodo) \
-                .grid(row=0, column=1, padx=5)
-            ttk.Button(button_frame, text="Volver",
-                       style="Sec.TButton",
-                       command=lambda: self.switch_frame("dashboard")) \
-                .grid(row=0, column=2, padx=5)
-                
-            try:
-                nodes = dbcon.command("select", "nodes", {"id": "*"})
-            except (ValueError, DatabaseError) as e:
-                messagebox.showerror("Error", str(e))
-
-            self.layers = {}
-
-            n_img = Image.open(image_finder.find_image("node"))
-            p_img = Image.open(image_finder.find_image("project"))
-
-            self.project_image = ImageTk.PhotoImage(p_img)
-            self.node_image = ImageTk.PhotoImage(n_img)
-
-            for node_data in nodes:
-                if node_data["project_id"] and str(uuid.UUID(bytes=node_data["project_id"])) not in self.layers:
-                    self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] = self.tree.insert("", "end",
-                                                                                text="Project:",
-                                                                                values=(str(uuid.UUID(bytes=node_data["project_id"])), "", ""),
-                                                                                image=self.project_image)
-
-                local_dataset_path = self._parse_path(node_data["local_dataset_path"])
-                self.tree.insert(self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] if node_data["project_id"] else "",0, values=(
-                    str(uuid.UUID(bytes=node_data["id"])),
-                    node_data["valid"],
-                    local_dataset_path
-                ), image=self.node_image)
-
-            self.tree.update_idletasks()
+    
     def _agregar_nodo(self):
         try:
             node_data = dbcon.command("insert", "nodes", {"valid": 0, "project_id": "", "local_dataset_path": ""})
@@ -126,14 +104,7 @@ class NodeListFrame(tk.Frame):
         messagebox.showinfo("Éxito", "Nodo agregado con éxito.")  
     
     
-    def _parse_path(self, path: str) -> str:
-        # Normaliza el path del dataset local
-        normalized_path = Path(path).resolve()
-        path = str(normalized_path)
-        indice_dataset = path.index("database/")
-        path = path[indice_dataset:]
-        path = "./" + path
-        return path
+    
 
     def _eliminar_nodo(self):
         seleccionado = self.tree.selection()
@@ -158,6 +129,36 @@ class NodeListFrame(tk.Frame):
         else:
             messagebox.showinfo("Información", "No hay ningún nodo seleccionado para eliminar.")
             
+    def _initialize_node_list(self):
+        try:
+            nodes = dbcon.command("select", "nodes", {"id": "*"})
+        except (ValueError, DatabaseError) as e:
+            messagebox.showerror("Error", str(e))
+
+        self.layers = {}
+
+        n_img = Image.open(image_finder.find_image("node"))
+        p_img = Image.open(image_finder.find_image("project"))
+
+        self.project_image = ImageTk.PhotoImage(p_img)
+        self.node_image = ImageTk.PhotoImage(n_img)
+
+        for node_data in nodes:
+            if node_data["project_id"] and str(uuid.UUID(bytes=node_data["project_id"])) not in self.layers:
+                self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] = self.tree.insert("", "end",
+                                                                                text="Project:",
+                                                                                values=(str(uuid.UUID(bytes=node_data["project_id"])), "", ""),
+                                                                                image=self.project_image)
+
+            local_dataset_path = self._parse_path(node_data["local_dataset_path"])
+            self.tree.insert(self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] if node_data["project_id"] else "",0, values=(
+                    str(uuid.UUID(bytes=node_data["id"])),
+                    node_data["valid"],
+                    local_dataset_path
+                ), image=self.node_image)
+
+        self.tree.update_idletasks()
+            
     def _update_tree_after_delete(self, seleccionado, canceled):
         for item in seleccionado:
                 if item in canceled:
@@ -166,3 +167,12 @@ class NodeListFrame(tk.Frame):
                 self.tree.delete(item)
                 if layer_id and len(self.tree.get_children(layer_id)) == 0:
                     self.tree.delete(layer_id)
+                    
+    def _parse_path(self, path: str) -> str:
+        # Normaliza el path del dataset local
+        normalized_path = Path(path).resolve()
+        path = str(normalized_path)
+        indice_dataset = path.index("database/")
+        path = path[indice_dataset:]
+        path = "./" + path
+        return path
