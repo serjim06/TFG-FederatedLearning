@@ -34,7 +34,7 @@ class App(tk.Tk):
         elif name == "recover":
             frame = recover.RecoverFrame(self.container, self.show_frame)
         elif name == "dashboard":
-            self.geometry("600x600")
+            self.geometry("1000x600")
             if usuario is not None:
                 self.usuario_actual = usuario
             frame = dashboard.DashboardFrame(self.container, self.show_frame, self.usuario_actual)

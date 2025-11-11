@@ -13,10 +13,11 @@ from PIL import ImageTk, Image
 from TkToolTip import ToolTip
 
 class NodeListFrame(tk.Frame):
-    def __init__(self, parent, switch_frame):
+    def __init__(self, parent, switch_frame, usuario):
             super().__init__(parent)
             self.configure(bg="#eef4fb")  # fondo cohesivo
             self.switch_frame = switch_frame
+            self.usuario = usuario
 
             # ======= ESTILO GENERAL =======
             style = utils.get_style()
@@ -30,9 +31,18 @@ class NodeListFrame(tk.Frame):
             toolbox = tk.Frame(self, bg="#eef4fb", relief="raised", bd=2)
             toolbox.pack(side="top", fill="x")
             
+            self.user_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("user")).resize((24,24))) 
+            self.user_group_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("user_group")).resize((24,24)))
             self.add_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("add")).resize((24,24)))
             self.delete_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("delete")).resize((24,24)))
 
+
+            self.user_button = ttk.Button(toolbox, image=self.user_image, text="", compound="left",
+                       command=self._ver_cuenta, width=2, style="Sec.TButton")
+            self.user_button.pack(side="left", padx=5, pady=5)
+            self.user_group_button = ttk.Button(toolbox, image=self.user_group_image, text="", compound="left",
+                       command=self._gestion_usuarios, width=2, style="Sec.TButton")
+            self.user_group_button.pack(side="left", padx=5, pady=5)
             self.add_button = ttk.Button(toolbox, image=self.add_image, text="", compound="left",
                        command=self._agregar_nodo, width=2, style="Sec.TButton")
             self.add_button.pack(side="left", padx=5, pady=5)
@@ -41,6 +51,8 @@ class NodeListFrame(tk.Frame):
             self.delete_button.pack(side="left", padx=5, pady=5)
             self.delete_button.state(["disabled"])
             
+            ToolTip(self.user_button, text="Ver cuenta", delay=0.5)
+            ToolTip(self.user_group_button, text="Gestión de usuarios", delay=0.5)
             ToolTip(self.add_button, text="Agregar un nuevo nodo a la base de datos", delay=0.5)
             ToolTip(self.delete_button, text="Eliminar el nodo seleccionado de la base de datos", delay=0.5)
 
@@ -71,6 +83,7 @@ class NodeListFrame(tk.Frame):
             scroll_x.config(command=self.tree.xview)
             scroll_x.grid(row=1, column=0, sticky="ew")
 
+            container.rowconfigure(1, weight=0)
             container.columnconfigure(0, weight=1)
             container.rowconfigure(0, weight=1)
         
@@ -83,6 +96,12 @@ class NodeListFrame(tk.Frame):
             # Cargar datos iniciales                
             self._initialize_node_list()
 
+
+    def _gestion_usuarios(self):
+        raise NotImplementedError()
+    
+    def _ver_cuenta(self):
+        self.switch_frame("profile", self.usuario)
     
     def _agregar_nodo(self):
         try:
