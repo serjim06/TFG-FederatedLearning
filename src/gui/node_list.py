@@ -188,10 +188,12 @@ class NodeListFrame(tk.Frame):
                     self.tree.delete(layer_id)
                     
     def _parse_path(self, path: str) -> str:
-        # Normaliza el path del dataset local
         normalized_path = Path(path).resolve()
-        path = str(normalized_path)
-        indice_dataset = path.index("database/")
-        path = path[indice_dataset:]
-        path = "./" + path
-        return path
+        parts = normalized_path.parts
+        if "database" in parts:
+            idx = parts.index("database")
+            relative_path = Path(*parts[idx:])
+            return f"./{relative_path.as_posix()}"
+        else:
+            # Ruta no contiene 'database', devuelve normalizada
+            return str(normalized_path)

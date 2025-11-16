@@ -1,9 +1,11 @@
 import tkinter as tk
+from PIL import Image, ImageTk
 import uuid
 from src.gui import login, recover, register, dashboard, profile, modify, node_list
 from src.utils.user import User
 from src.db import dbcon
 from src.models.node import Node
+import src.utils.icons.image_finder as image_finder
 
 class App(tk.Tk):
     def __init__(self):
@@ -91,5 +93,7 @@ if __name__ == "__main__":
     dbcon.connect("database.db")
     _create_test_project()
     app = App()
+    icon = ImageTk.PhotoImage(Image.open(image_finder.find_image("FBIcon")).resize((24,24)))
+    app.iconphoto(False, icon)
     app.mainloop()
 

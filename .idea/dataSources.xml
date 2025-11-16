@@ -4,14 +4,12 @@
     <data-source source="LOCAL" name="DataBase" uuid="ae73cda9-ec6c-4410-a383-cddb3c162394">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
-      <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
       <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/database/database</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
     <data-source source="LOCAL" name="database" uuid="9df6a362-c2aa-436c-b49e-ecd500723bbf">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
-      <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
       <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/database/database.db</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
       <libraries>
