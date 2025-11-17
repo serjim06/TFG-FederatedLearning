@@ -1,4 +1,5 @@
 import os
+import shutil
 from sqlite3 import DatabaseError
 import tkinter as tk
 from tkinter import ttk
@@ -128,16 +129,28 @@ class NodeListFrame(tk.Frame):
     def _eliminar_nodo(self):
         seleccionado = self.tree.selection()
         canceled = []
+
         if seleccionado:
             for item in seleccionado:
                 item_id = item
+                if item_id in self.layers.values():
+                    messagebox.showwarning("Advertencia", "No se pueden eliminar proyectos.")
+                    canceled.append(item)
                 layer_id = self.tree.parent(item_id)
                 if layer_id and not messagebox.askyesno("Confirmar Eliminación", f"El nodo con id {self.tree.item(item_id, 'values')[0]         } pertenece a un proyecto activo de un usuario. ¿Estás seguro de que deseas eliminar este nodo?"):
                     canceled.append(item)
                     continue
-            
+                    
                 values = self.tree.item(item_id, "values")
                 node_id = uuid.UUID(values[0]).bytes
+                
+                try:
+                    self._eliminar_dataset(node_id)
+                except Exception as e:
+                    messagebox.showerror("Error", f"No se pudo eliminar el dataset asociado al nodo: {e}")
+                    canceled.append(item)
+                    continue
+            
                 try:
                     dbcon.command("delete", "nodes", {"id": node_id})
                 except (ValueError, DatabaseError) as e:
@@ -148,6 +161,16 @@ class NodeListFrame(tk.Frame):
         else:
             messagebox.showinfo("Información", "No hay ningún nodo seleccionado para eliminar.")
             
+            
+    def _eliminar_dataset(self, node_id):
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        local_dataset_path = os.path.join(BASE_DIR, "..", "..", "database", "datasets" , "node_" + str(uuid.UUID(bytes=node_id)))
+        
+        if os.path.exists(local_dataset_path):
+            shutil.rmtree(local_dataset_path)
+
+
+    
     def _initialize_node_list(self):
         try:
             nodes = dbcon.command("select", "nodes", {"id": "*"})
