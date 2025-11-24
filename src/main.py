@@ -41,6 +41,7 @@ class App(tk.Tk):
                 self.usuario_actual = usuario
             frame = dashboard.DashboardFrame(self.container, self.show_frame, self.usuario_actual)
         elif name == "profile":
+            self.geometry("600x600")
             frame = profile.ProfileFrame(self.container, self.show_frame, usuario)
         elif name == "modify":
             frame = modify.ModifyPanel(self.container, self.show_frame, self.usuario_actual)
@@ -93,7 +94,5 @@ if __name__ == "__main__":
     dbcon.connect("database.db")
     _create_test_project()
     app = App()
-    icon = ImageTk.PhotoImage(Image.open(image_finder.find_image("FBIcon")).resize((24,24)))
-    app.iconphoto(False, icon)
     app.mainloop()
 
