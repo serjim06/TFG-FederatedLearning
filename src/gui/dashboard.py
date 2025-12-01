@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from src.gui.node_list import NodeListFrame
+from src.gui.project_list import ProjectListFrame
 import src.utils.utils as utils
 
 class DashboardFrame(tk.Frame):
@@ -23,6 +24,8 @@ class DashboardFrame(tk.Frame):
     
         if usuario['role'] == 'admin':
             frame = NodeListFrame(self.content_frame, self.switch_frame, self.usuario)
+        else:
+            frame = ProjectListFrame(self.content_frame, self.switch_frame, self.usuario)
             
         frame.pack(fill="both", expand=True)
 
