@@ -1,4 +1,4 @@
-from db import dbcon
+from src.db import dbcon
 import uuid
 
 default_parameters = {
