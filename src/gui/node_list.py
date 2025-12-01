@@ -75,9 +75,6 @@ class NodeListFrame(tk.Frame):
             self.tree.column("#0", width=100, stretch=tk.NO)
             self.tree.update_idletasks()
             self.tree.grid(row=0, column=0, sticky="nsew")
-            
-            self.tree.bind("<<TreeviewSelect>>", lambda event: 
-                self.delete_button.state(["!disabled"]) if self.tree.selection() else self.delete_button.state(["disabled"]))
 
             scroll_y.config(command=self.tree.yview)
             scroll_y.grid(row=0, column=1, sticky="ns")
@@ -94,6 +91,9 @@ class NodeListFrame(tk.Frame):
                 self.tree.heading(col, text=col, anchor="w")
                 self.tree.column(col, width=widths[i], anchor="w", stretch=tk.YES)
 
+
+            self.tree.bind('<<TreeviewSelect>>', self.handle_select)
+            
             # Cargar datos iniciales                
             self._initialize_node_list()
 
@@ -190,7 +190,7 @@ class NodeListFrame(tk.Frame):
                 self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] = self.tree.insert("", "end",
                                                                                 text="Project:",
                                                                                 values=(str(uuid.UUID(bytes=node_data["project_id"])), "", ""),
-                                                                                image=self.project_image)
+                                                                                image=self.project_image, tags=('no-select',))
 
             local_dataset_path = self._parse_path(node_data["local_dataset_path"])
             self.tree.insert(self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] if node_data["project_id"] else "",0, values=(
@@ -200,6 +200,8 @@ class NodeListFrame(tk.Frame):
                 ), image=self.node_image)
 
         self.tree.update_idletasks()
+        
+    
             
     def _update_tree_after_delete(self, seleccionado, canceled):
         for item in seleccionado:
@@ -220,3 +222,20 @@ class NodeListFrame(tk.Frame):
         else:
             # Ruta no contiene 'database', devuelve normalizada
             return str(normalized_path)
+        
+        
+    def handle_select(self, event):
+        try:
+            item_id = self.tree.selection()[0] 
+        except IndexError:
+            return
+
+        tags = self.tree.item(item_id, 'tags')
+        
+        if 'no-select' in tags:
+            self.tree.selection_remove(item_id)
+            
+            is_open = self.tree.item(item_id, 'open')
+            self.tree.item(item_id, open=not is_open)
+        else:
+            self.delete_button.state(["!disabled"]) if self.tree.selection() else self.delete_button.state(["disabled"])
