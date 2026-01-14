@@ -13,6 +13,7 @@ from pathlib import Path
 from PIL import ImageTk, Image
 from TkToolTip import ToolTip
 from src.projects.projects import Project
+from src.gui.new_project import NewProjectDialog
 
 class ProjectListFrame(tk.Frame):
     def __init__(self, parent, switch_frame, usuario):
@@ -33,9 +34,8 @@ class ProjectListFrame(tk.Frame):
             toolbox = tk.Frame(self, bg="#eef4fb", relief="raised", bd=2)
             toolbox.pack(side="top", fill="x")
             
-            #TODO IMAGENES: USER, PLAY, CONFIG, DELETE, ADD, VER?!?!?!?!
+            #TODO IMAGENES: VER?!?!?!?!
             self.user_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("user")).resize((24,24))) 
-            self.user_group_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("user_group")).resize((24,24)))
             self.add_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("add")).resize((24,24)))
             self.config_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("settings")).resize((24,24)))
             self.play_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("play")).resize((24,24)))
@@ -45,14 +45,11 @@ class ProjectListFrame(tk.Frame):
             self.user_button = ttk.Button(toolbox, image=self.user_image, text="", compound="left",
                        command=self._ver_cuenta, width=2, style="Sec.TButton")
             self.user_button.pack(side="left", padx=5, pady=5)
-            self.user_group_button = ttk.Button(toolbox, image=self.user_group_image, text="", compound="left",
-                       command=self._gestion_usuarios, width=2, style="Sec.TButton")
-            self.user_group_button.pack(side="left", padx=5, pady=5)
             self.add_button = ttk.Button(toolbox, image=self.add_image, text="", compound="left",
-                       command=self._agregar_nodo, width=2, style="Sec.TButton")
+                       command=self._agregar_proyecto, width=2, style="Sec.TButton")
             self.add_button.pack(side="left", padx=5, pady=5)
             self.delete_button = ttk.Button(toolbox, image=self.delete_image, text="", compound="left",
-                       command=self._eliminar_nodo, width=2, style="Sec.TButton")
+                       command=self._eliminar_proyecto, width=2, style="Sec.TButton")
             self.delete_button.pack(side="left", padx=5, pady=5)
             self.delete_button.state(["disabled"])
             
@@ -69,7 +66,6 @@ class ProjectListFrame(tk.Frame):
             
             
             ToolTip(self.user_button, text="Ver cuenta", delay=0.5)
-            ToolTip(self.user_group_button, text="Gestión de usuarios", delay=0.5)
             ToolTip(self.add_button, text="Agregar un nuevo nodo a la base de datos", delay=0.5)
             ToolTip(self.delete_button, text="Eliminar el nodo seleccionado de la base de datos", delay=0.5)
             #TODO add tooltip
@@ -122,13 +118,15 @@ class ProjectListFrame(tk.Frame):
     def _ver_cuenta(self):
         self.switch_frame("profile", self.usuario)
     
-    def _agregar_nodo(self):
-        try:
-            node_data = dbcon.command("insert", "nodes", {"valid": 0, "project_id": "", "local_dataset_path": ""})
+    def _agregar_proyecto(self):
+        try: 
+            #node_data = dbcon.command("insert", "projects", {"valid": 0, "project_id": "", "local_dataset_path": ""})
             
-            node = Node(node_data[0], node_data[1], node_data[2])
+            NewProjectDialog(self)
             
-            dbcon.command("update", "nodes", {"id":node.id, "local_dataset_path": node.local_dataset_path})
+            #node = Node(node_data[0], node_data[1], node_data[2])
+            
+            #dbcon.command("update", "projects", {"id":node.id, "local_dataset_path": node.local_dataset_path})
         except (ValueError, DatabaseError) as e:
             messagebox.showerror("Error", str(e))
             return
@@ -144,7 +142,7 @@ class ProjectListFrame(tk.Frame):
     
     
 
-    def _eliminar_nodo(self):
+    def _eliminar_proyecto(self):
         seleccionado = self.tree.selection()
         canceled = []
 
