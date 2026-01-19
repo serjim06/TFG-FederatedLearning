@@ -12,13 +12,6 @@ from src.utils.icons import image_finder
 from src.db import dbcon
 from src.projects.projects import Project
 
-"""TODO:
-    - Poner el fondo
-    - Añadir más campos según sea necesario
-    - Validar los campos
-    - Implementar el método get_data() para obtener los datos del formulario    
-"""
-
 class ScrollableNodesFrame(ttk.Frame):
     def __init__(self, parent, height=150):
         super().__init__(parent)
@@ -52,6 +45,7 @@ class ScrollableNodesFrame(ttk.Frame):
         scrollbar.pack(side="right", fill="y")
 
 
+FORM_LABEL = "Form.TLabel"
 
 class NewProject(ttk.Frame):
     def __init__(self, parent):
@@ -123,7 +117,7 @@ class NewProject(ttk.Frame):
 
         # --- Aggregation Strategy ---
 
-        self.agg_lb = ttk.Label(self.params_frame, text="Aggregation strategy:", style="Form.TLabel", cursor="question_arrow")
+        self.agg_lb = ttk.Label(self.params_frame, text="Aggregation strategy:", style=FORM_LABEL, cursor="question_arrow")
         self.agg_lb.grid(
             row=2, column=0, sticky="w"
         )
@@ -137,7 +131,7 @@ class NewProject(ttk.Frame):
         
         # --- Epochs ---
         
-        self.epochs_label = ttk.Label(self.params_frame, text="Epochs:", style="Form.TLabel", cursor="question_arrow")
+        self.epochs_label = ttk.Label(self.params_frame, text="Epochs:", style=FORM_LABEL, cursor="question_arrow")
         self.epochs_label.grid(
             row=4, column=0, sticky="w"
         )
@@ -156,7 +150,7 @@ class NewProject(ttk.Frame):
 
         # --- Validation Split ---
         
-        self.val_split_label = ttk.Label(self.params_frame, text="Validation split:", style="Form.TLabel", cursor="question_arrow")
+        self.val_split_label = ttk.Label(self.params_frame, text="Validation split:", style=FORM_LABEL, cursor="question_arrow")
         self.val_split_label.grid(
             row=6, column=0, sticky="w"
         )
@@ -210,7 +204,7 @@ class NewProject(ttk.Frame):
         ToolTip(self.warning_label, text="Advertencia: Un tamaño de batch muy grande puede causar problemas de memoria en nodos con recursos limitados.")        
         # ---- Fraction Fit ----
         
-        self.fraction_fit_label = ttk.Label(self.params_frame, text="Fraction fit:", style="Form.TLabel", cursor="question_arrow")
+        self.fraction_fit_label = ttk.Label(self.params_frame, text="Fraction fit:", style=FORM_LABEL, cursor="question_arrow")
         self.fraction_fit_label.grid(
             row=10, column=0, sticky="w")
         
@@ -229,7 +223,7 @@ class NewProject(ttk.Frame):
         
         # ---- Fraction Evaluate ----
         
-        self.fraction_evaluate_label = ttk.Label(self.params_frame, text="Fraction evaluate:", style="Form.TLabel", cursor="question_arrow")
+        self.fraction_evaluate_label = ttk.Label(self.params_frame, text="Fraction evaluate:", style=FORM_LABEL, cursor="question_arrow")
         self.fraction_evaluate_label.grid(
             row=12, column=0, sticky="w")
         
@@ -248,7 +242,7 @@ class NewProject(ttk.Frame):
         
         # ---- Learning Rate ----
 
-        self.learning_rate_label = ttk.Label(self.params_frame, text="Learning rate:", style="Form.TLabel", cursor="question_arrow")
+        self.learning_rate_label = ttk.Label(self.params_frame, text="Learning rate:", style=FORM_LABEL, cursor="question_arrow")
         self.learning_rate_label.grid(
             row=14, column=0, sticky="w")
         
@@ -381,7 +375,6 @@ class NewProjectDialog(tk.Toplevel):
             return
         
         params_str = json.dumps(data["parameters"])
-        #data["initial_nodes"] = [str(uuid.UUID(node_id).bytes) for node_id in data["initial_nodes"]]
         nodes_str = json.dumps(data["initial_nodes"])
         
         try:
