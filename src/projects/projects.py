@@ -33,9 +33,7 @@ class Project:
                 - "fed_avg": Federated Averaging
                 - "fed_prox": Federated Proximal
             initial_nodes (list): project initial nodes
-            metrics (dict): project metrics. Possible keys:
-                - "accuracy" (float): accuracy.
-                - "loss" (float): loss metrics. Possible values:
+            metrics (string): project loss metrics. Possible values:
                     - "categorical_crossentropy". Default value.
                     - "sparse_categorical_crossentropy"
                     - "binary_crossentropy"
@@ -48,10 +46,12 @@ class Project:
         parameters = default_parameters | parameters
         self.parameters = parameters
         self.aggregation_strategy = aggregation_strategy
-        self.nodes = initial_nodes
+        self.nodes = []
+        for node in initial_nodes:
+            self.add_node(node) 
         self.unconfirmed_results = []
         self.training_round = 0
-        metrics = {"loss": "categorical_crossentropy"} | metrics
+        metrics = metrics if metrics else "categorical_crossentropy"
         self.metrics = metrics
 
     def to_dict(self):
@@ -89,7 +89,7 @@ class Project:
             raise ValueError("Node is already in the project")
         
         
-        dbcon.command("update", "nodes", {"id": node_id}, {"valid": True})
+        dbcon.command("update", "nodes", {"id": node_id, "valid": 1})
         self.nodes.append(node_id)
         
     def remove_node(self, node_id):
