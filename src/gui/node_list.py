@@ -1,110 +1,33 @@
-import os
-import shutil
 from sqlite3 import DatabaseError
-import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
 import uuid
-import src.utils.utils as utils
 from src.models.node import Node
 import src.db.dbcon as dbcon
 import src.utils.icons.image_finder as image_finder
-from pathlib import Path
+from src.gui.base_list import SEC_BTN_STYLE, BaseListFrame
 from PIL import ImageTk, Image
 from TkToolTip import ToolTip
 
-class NodeListFrame(tk.Frame):
+class NodeListFrame(BaseListFrame):
     def __init__(self, parent, switch_frame, usuario):
-            super().__init__(parent)
-            self.configure(bg="#eef4fb")  # fondo cohesivo
-            self.switch_frame = switch_frame
-            self.usuario = usuario
+            super().__init__(parent, switch_frame, usuario, columns={"id": 330, "valid": 55, "local_dataset_path": 600})
 
-            # ======= ESTILO GENERAL =======
-            style = utils.get_style()
-            
-            # ======= TÍTULO =======
-            #title = ttk.Label(self, text="Lista de Nodos", font=("Segoe UI", 22, "bold"),
-            #                  background="#eef4fb", foreground="#2b2b2b")
-            #title.pack(pady=(20, 10))
-            
-            # ======= TOOLBOX =======
-            toolbox = tk.Frame(self, bg="#eef4fb", relief="raised", bd=2)
-            toolbox.pack(side="top", fill="x")
-            
-            self.user_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("user")).resize((24,24))) 
+    def _insert_extra_buttons(self):
             self.user_group_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("user_group")).resize((24,24)))
-            self.add_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("add")).resize((24,24)))
-            self.delete_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("delete")).resize((24,24)))
-
-
-            self.user_button = ttk.Button(toolbox, image=self.user_image, text="", compound="left",
-                       command=self._ver_cuenta, width=2, style="Sec.TButton")
-            self.user_button.pack(side="left", padx=5, pady=5)
-            self.user_group_button = ttk.Button(toolbox, image=self.user_group_image, text="", compound="left",
-                       command=self._gestion_usuarios, width=2, style="Sec.TButton")
+           
+            self.user_group_button = ttk.Button(self.toolbox, image=self.user_group_image, text="", compound="left",
+                       command=self._user_management, width=2, style=SEC_BTN_STYLE)
             self.user_group_button.pack(side="left", padx=5, pady=5)
-            self.add_button = ttk.Button(toolbox, image=self.add_image, text="", compound="left",
-                       command=self._agregar_nodo, width=2, style="Sec.TButton")
-            self.add_button.pack(side="left", padx=5, pady=5)
-            self.delete_button = ttk.Button(toolbox, image=self.delete_image, text="", compound="left",
-                       command=self._eliminar_nodo, width=2, style="Sec.TButton")
-            self.delete_button.pack(side="left", padx=5, pady=5)
-            self.delete_button.state(["disabled"])
             
-            ToolTip(self.user_button, text="Ver cuenta", delay=0.5)
             ToolTip(self.user_group_button, text="Gestión de usuarios", delay=0.5)
             ToolTip(self.add_button, text="Agregar un nuevo nodo a la base de datos", delay=0.5)
-            ToolTip(self.delete_button, text="Eliminar el nodo seleccionado de la base de datos", delay=0.5)
+            ToolTip(self.delete_button, text="Eliminar el nodo seleccionado de la base de datos", delay=0.5)        
 
-            # ======= TABLA DE NODOS =======
-            container = ttk.Frame(self)
-            container.pack(fill="both", expand=True, padx=25, pady=10)
-
-            scroll_y = ttk.Scrollbar(container, orient="vertical")
-            scroll_x = ttk.Scrollbar(container, orient="horizontal")
-
-            columnas = ("ID", "Valid", "Local Dataset Path")
-
-            self.tree = ttk.Treeview(container,
-                                     columns=columnas,
-                                     show=("tree","headings"),
-                                     yscrollcommand=scroll_y.set,
-                                     xscrollcommand=scroll_x.set,
-                                     style="Treeview")
-            self.tree.column("#0", width=100, stretch=tk.NO)
-            self.tree.update_idletasks()
-            self.tree.grid(row=0, column=0, sticky="nsew")
-
-            scroll_y.config(command=self.tree.yview)
-            scroll_y.grid(row=0, column=1, sticky="ns")
-            scroll_x.config(command=self.tree.xview)
-            scroll_x.grid(row=1, column=0, sticky="ew")
-
-            container.rowconfigure(1, weight=0)
-            container.columnconfigure(0, weight=1)
-            container.rowconfigure(0, weight=1)
-        
-
-            widths = [330, 55, 600]
-            for i, col in enumerate(columnas):
-                self.tree.heading(col, text=col, anchor="w")
-                self.tree.column(col, width=widths[i], anchor="w", stretch=tk.YES)
-
-
-            self.tree.bind('<<TreeviewSelect>>', self.handle_select)
-            
-            # Cargar datos iniciales                
-            self._initialize_node_list()
-
-
-    def _gestion_usuarios(self):
+    def _user_management(self):
         raise NotImplementedError()
     
-    def _ver_cuenta(self):
-        self.switch_frame("profile", self.usuario)
-    
-    def _agregar_nodo(self):
+    def _add_item(self):
         try:
             node_data = dbcon.command("insert", "nodes", {"valid": 0, "project_id": "", "local_dataset_path": ""})
             
@@ -123,10 +46,7 @@ class NodeListFrame(tk.Frame):
         self.tree.update_idletasks()
         messagebox.showinfo("Éxito", "Nodo agregado con éxito.")  
     
-    
-    
-
-    def _eliminar_nodo(self):
+    def _delete_item(self):
         seleccionado = self.tree.selection()
         canceled = []
 
@@ -136,8 +56,9 @@ class NodeListFrame(tk.Frame):
                 if item_id in self.layers.values():
                     messagebox.showwarning("Advertencia", "No se pueden eliminar proyectos.")
                     canceled.append(item)
+                    continue
                 layer_id = self.tree.parent(item_id)
-                if layer_id and not messagebox.askyesno("Confirmar Eliminación", f"El nodo con id {self.tree.item(item_id, 'values')[0]         } pertenece a un proyecto activo de un usuario. ¿Estás seguro de que deseas eliminar este nodo?"):
+                if layer_id and not messagebox.askyesno("Confirmar Eliminación", f"El nodo con id {self.tree.item(item_id, 'values')[0]} pertenece a un proyecto activo de un usuario. ¿Estás seguro de que deseas eliminar este nodo?"):
                     canceled.append(item)
                     continue
                     
@@ -145,7 +66,7 @@ class NodeListFrame(tk.Frame):
                 node_id = uuid.UUID(values[0]).bytes
                 
                 try:
-                    self._eliminar_dataset(node_id)
+                    self._eliminate_dataset(node_id)
                 except Exception as e:
                     messagebox.showerror("Error", f"No se pudo eliminar el dataset asociado al nodo: {e}")
                     canceled.append(item)
@@ -155,23 +76,12 @@ class NodeListFrame(tk.Frame):
                     dbcon.command("delete", "nodes", {"id": node_id})
                 except (ValueError, DatabaseError) as e:
                     messagebox.showerror("Error", str(e))
-                    #return
                 
             self._update_tree_after_delete(seleccionado, canceled)
         else:
             messagebox.showinfo("Información", "No hay ningún nodo seleccionado para eliminar.")
             
-            
-    def _eliminar_dataset(self, node_id):
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        local_dataset_path = os.path.join(BASE_DIR, "..", "..", "database", "datasets" , "node_" + str(uuid.UUID(bytes=node_id)))
-        
-        if os.path.exists(local_dataset_path):
-            shutil.rmtree(local_dataset_path)
-
-
-    
-    def _initialize_node_list(self):
+    def _initialize_tree(self):
         try:
             nodes = dbcon.command("select", "nodes", {"id": "*"})
         except (ValueError, DatabaseError) as e:
@@ -201,30 +111,7 @@ class NodeListFrame(tk.Frame):
 
         self.tree.update_idletasks()
         
-    
-            
-    def _update_tree_after_delete(self, seleccionado, canceled):
-        for item in seleccionado:
-                if item in canceled:
-                    continue
-                layer_id = self.tree.parent(item)
-                self.tree.delete(item)
-                if layer_id and len(self.tree.get_children(layer_id)) == 0:
-                    self.tree.delete(layer_id)
-                    
-    def _parse_path(self, path: str) -> str:
-        normalized_path = Path(path).resolve()
-        parts = normalized_path.parts
-        if "database" in parts:
-            idx = parts.index("database")
-            relative_path = Path(*parts[idx:])
-            return f"./{relative_path.as_posix()}"
-        else:
-            # Ruta no contiene 'database', devuelve normalizada
-            return str(normalized_path)
-        
-        
-    def handle_select(self, event):
+    def _select_item_changed(self, event):
         try:
             item_id = self.tree.selection()[0] 
         except IndexError:
