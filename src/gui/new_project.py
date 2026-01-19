@@ -398,10 +398,8 @@ class NewProjectDialog(tk.Toplevel):
         except (ValueError, DatabaseError) as e:
             messagebox.showerror("Error", str(e))
             return
-
-
-        messagebox.showinfo("Proyecto con los siguientes detalles creado:\n\n", project.to_dict())
-        self.parent._initialize_projects_list()
+        
+        self.parent._initialize_tree()
         messagebox.showinfo("Éxito", f"Proyecto '{data['name']}' creado correctamente.")
         
         self.destroy()
