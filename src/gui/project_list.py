@@ -59,14 +59,14 @@ class ProjectListFrame(BaseListFrame):
                 if not messagebox.askyesno("Confirmar eliminación", "¿Estás seguro de que deseas eliminar el proyecto seleccionado? Esta acción no se puede deshacer."):
                     canceled.append(item)
                     continue
-
+                
                 values = self.tree.item(item_id, "values")
                 project_id = uuid.UUID(values[0]).bytes
                 
                 try:
                     self._invalidate_nodes(project_id)
                     
-                    dbcon.command("delete", "nodes", {"id": project_id})
+                    dbcon.command("delete", "projects", {"id": project_id})
                 except (ValueError, DatabaseError) as e:
                     messagebox.showerror("Error", str(e))
                     #return
