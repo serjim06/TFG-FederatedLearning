@@ -92,7 +92,6 @@ def _create_test_project():
 if __name__ == "__main__":
     user = None
     dbcon.connect("database.db")
-    _create_test_project()
     app = App()
     app.mainloop()
 
