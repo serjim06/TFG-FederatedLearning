@@ -89,7 +89,7 @@ class Project:
             raise ValueError("Node is already in the project")
         
         
-        dbcon.command("update", "nodes", {"id": node_id, "valid": 1})
+        dbcon.command("update", "nodes", {"id": node_id, "valid": 1, "project_id": self.id})
         self.nodes.append(node_id)
         
     def remove_node(self, node_id):
