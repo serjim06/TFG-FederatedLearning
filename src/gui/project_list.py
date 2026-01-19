@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 from sqlite3 import DatabaseError
@@ -66,8 +67,8 @@ class ProjectListFrame(tk.Frame):
             
             
             ToolTip(self.user_button, text="Ver cuenta", delay=0.5)
-            ToolTip(self.add_button, text="Agregar un nuevo nodo a la base de datos", delay=0.5)
-            ToolTip(self.delete_button, text="Eliminar el nodo seleccionado de la base de datos", delay=0.5)
+            ToolTip(self.add_button, text="Crear un proyecto nuevo", delay=0.5)
+            ToolTip(self.delete_button, text="Eliminar proyecto seleccionado", delay=0.5)
             #TODO add tooltip
 
             # ======= TABLA DE NODOS =======
@@ -77,8 +78,7 @@ class ProjectListFrame(tk.Frame):
             scroll_y = ttk.Scrollbar(container, orient="vertical")
             scroll_x = ttk.Scrollbar(container, orient="horizontal")
 
-            columnas = ("id", "uid", "name", "description", "parameters", "aggregation_strategy", "initial_nodes",
-                 "metrics")
+            columnas = ("id", "name", "description")
 
             self.tree = ttk.Treeview(container,
                                      columns=columnas,
@@ -103,45 +103,25 @@ class ProjectListFrame(tk.Frame):
             container.rowconfigure(0, weight=1)
         
 
-            widths = [330, 55, 600,100, 100,100,100,100]
+            widths = [330, 55, 600]
             for i, col in enumerate(columnas):
                 self.tree.heading(col, text=col, anchor="w")
                 self.tree.column(col, width=widths[i], anchor="w", stretch=tk.YES)
 
             # Cargar datos iniciales                
-            self._initialize_node_list()
+            self._initialize_projects_list()
 
-
-    def _gestion_usuarios(self):
-        raise NotImplementedError()
     
     def _ver_cuenta(self):
         self.switch_frame("profile", self.usuario)
     
     def _agregar_proyecto(self):
         try: 
-            #node_data = dbcon.command("insert", "projects", {"valid": 0, "project_id": "", "local_dataset_path": ""})
-            
-            NewProjectDialog(self)
-            
-            #node = Node(node_data[0], node_data[1], node_data[2])
-            
-            #dbcon.command("update", "projects", {"id":node.id, "local_dataset_path": node.local_dataset_path})
+            NewProjectDialog(self, self.usuario["id"])
         except (ValueError, DatabaseError) as e:
             messagebox.showerror("Error", str(e))
             return
-        
-        self.tree.insert("", 0, values=(
-            str(uuid.UUID(bytes=node.id)),
-            node.valid,
-            self._parse_path(node.local_dataset_path)
-        ), image=self.node_image)
-        self.tree.update_idletasks()
-        messagebox.showinfo("Éxito", "Nodo agregado con éxito.")  
     
-    
-    
-
     def _eliminar_proyecto(self):
         seleccionado = self.tree.selection()
         canceled = []
@@ -149,31 +129,24 @@ class ProjectListFrame(tk.Frame):
         if seleccionado:
             for item in seleccionado:
                 item_id = item
-                if item_id in self.layers.values():
-                    messagebox.showwarning("Advertencia", "No se pueden eliminar proyectos.")
-                    canceled.append(item)
-                layer_id = self.tree.parent(item_id)
-                if layer_id and not messagebox.askyesno("Confirmar Eliminación", f"El nodo con id {self.tree.item(item_id, 'values')[0]         } pertenece a un proyecto activo de un usuario. ¿Estás seguro de que deseas eliminar este nodo?"):
+                
+                if not messagebox.askyesno("Confirmar eliminación", "¿Estás seguro de que deseas eliminar el proyecto seleccionado? Esta acción no se puede deshacer."):
                     canceled.append(item)
                     continue
-                    
+
                 values = self.tree.item(item_id, "values")
-                node_id = uuid.UUID(values[0]).bytes
+                project_id = uuid.UUID(values[0]).bytes
                 
                 try:
-                    self._eliminar_dataset(node_id)
-                except Exception as e:
-                    messagebox.showerror("Error", f"No se pudo eliminar el dataset asociado al nodo: {e}")
-                    canceled.append(item)
-                    continue
-            
-                try:
-                    dbcon.command("delete", "nodes", {"id": node_id})
+                    self._invalidar_nodos(project_id)
+                    
+                    dbcon.command("delete", "nodes", {"id": project_id})
                 except (ValueError, DatabaseError) as e:
                     messagebox.showerror("Error", str(e))
                     #return
                 
             self._update_tree_after_delete(seleccionado, canceled)
+            messagebox.showinfo("Información", "Proyecto(s) eliminado(s) correctamente.")
         else:
             messagebox.showinfo("Información", "No hay ningún nodo seleccionado para eliminar.")
             
@@ -185,9 +158,31 @@ class ProjectListFrame(tk.Frame):
         if os.path.exists(local_dataset_path):
             shutil.rmtree(local_dataset_path)
 
-
+    def _invalidar_nodos(self, project_id):
+        """
+        Invalidates nodes associated with a project and removes their datasets, as they are unlikely to be used anymore.
+        
+        Args:
+            project_id (bytes): The id of the project whose nodes are to be invalidated.
+        """
+        
+        project_data = dbcon.command("select", "projects", {"id": project_id}) 
+                    
+        if project_data:
+            project_nodes = json.loads(project_data[0]["nodes"])
+                        
+            for node_id in project_nodes:
+                self._eliminar_dataset(uuid.UUID(node_id).bytes)
+                            
+                try:
+                    dbcon.command("update", "nodes", {"id": uuid.UUID(node_id).bytes, "valid": 0})
+                except (ValueError, DatabaseError) as e:
+                    messagebox.showerror("Error", str(e))
+                    
     
-    def _initialize_node_list(self):
+    def _initialize_projects_list(self):
+        self.tree.delete(*self.tree.get_children())
+        
         try:
             projects = dbcon.command("select", "projects", {"uid": self.usuario['id']})
         except (ValueError, DatabaseError) as e:
@@ -195,24 +190,16 @@ class ProjectListFrame(tk.Frame):
 
         self.layers = {}
 
-        n_img = Image.open(image_finder.find_image("node"))
         p_img = Image.open(image_finder.find_image("project"))
 
         self.project_image = ImageTk.PhotoImage(p_img)
-        self.node_image = ImageTk.PhotoImage(n_img)
 
         for project_data in projects:
             if str(uuid.UUID(bytes=project_data["id"])) not in self.layers:
                 self.layers[str(uuid.UUID(bytes=project_data["id"]))] = self.tree.insert("", "end",
                                                                                 text="Project:",
-                                                                                values=(str(uuid.UUID(bytes=project_data["id"])), "", ""),
+                                                                                values=(str(uuid.UUID(bytes=project_data["id"])), project_data["name"], project_data["description"]),
                                                                                 image=self.project_image)
-                
-                nodes = dbcon.command("select", "nodes", {"project_id": project_data["id"]})
-                
-                for node_data in nodes:
-                    self.tree.insert(self.layers[str(uuid.UUID(bytes=project_data["id"]))], 0, values=(str(uuid.UUID(bytes=node_data["id"]))))
-
         self.tree.update_idletasks()
             
     def _update_tree_after_delete(self, seleccionado, canceled):
