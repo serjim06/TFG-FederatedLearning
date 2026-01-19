@@ -97,14 +97,14 @@ class NodeListFrame(BaseListFrame):
         self.node_image = ImageTk.PhotoImage(n_img)
 
         for node_data in nodes:
-            if node_data["project_id"] and str(uuid.UUID(bytes=node_data["project_id"])) not in self.layers:
+            if node_data["valid"] == 1 and node_data["project_id"] and str(uuid.UUID(bytes=node_data["project_id"])) not in self.layers:
                 self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] = self.tree.insert("", "end",
                                                                                 text="Project:",
                                                                                 values=(str(uuid.UUID(bytes=node_data["project_id"])), "", ""),
                                                                                 image=self.project_image, tags=('no-select',))
 
             local_dataset_path = self._parse_path(node_data["local_dataset_path"])
-            self.tree.insert(self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] if node_data["project_id"] else "",0, values=(
+            self.tree.insert(self.layers[str(uuid.UUID(bytes=node_data["project_id"]))] if node_data["valid"] == 1 else "",0, values=(
                     str(uuid.UUID(bytes=node_data["id"])),
                     node_data["valid"],
                     local_dataset_path
