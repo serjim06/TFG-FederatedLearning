@@ -18,7 +18,8 @@ class NodeListFrame(BaseListFrame):
            
             self.user_group_button = ttk.Button(self.toolbox, image=self.user_group_image, text="", compound="left",
                        command=self._user_management, width=2, style=SEC_BTN_STYLE)
-            self.user_group_button.pack(side="left", padx=5, pady=5)
+            self.user_group_button.pack(side="left", padx=5, pady=5, before=self.buttons[1])
+            self.buttons.insert(1, self.user_group_button)
             
             ToolTip(self.user_group_button, text="Gestión de usuarios", delay=0.5)
             ToolTip(self.add_button, text="Agregar un nuevo nodo a la base de datos", delay=0.5)
@@ -111,7 +112,7 @@ class NodeListFrame(BaseListFrame):
 
         self.tree.update_idletasks()
         
-    def _select_item_changed(self, event):
+    def _selected_item_changed(self):
         try:
             item_id = self.tree.selection()[0] 
         except IndexError:

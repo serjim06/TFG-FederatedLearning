@@ -52,6 +52,7 @@ class BaseListFrame(tk.Frame, ABC):
                        command=self._delete_item, width=2, style=SEC_BTN_STYLE)
         self.delete_button.pack(side="left", padx=5, pady=5)
         self.buttons.append(self.delete_button)
+        self.delete_button.state(["disabled"])
         
         ToolTip(self.user_button, text="Ver cuenta", delay=0.5)
         
