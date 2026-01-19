@@ -76,4 +76,29 @@ def get_style():
                       background=[("selected", "#e0e9f7")],
                       foreground=[("selected", "#000")])
     
+    style.configure("TFrame", background="#eef4fb")
+    
+    style.map(
+    "TCombobox",
+    fieldbackground=[("readonly", "white")],
+    background=[("readonly", "white")]
+    )
+    
+    style.configure(
+    "Form.TLabel",
+    background="#eef4fb"
+    )
+    
+    style.configure(
+    "White.Vertical.TScrollbar",
+    background="white",
+    troughcolor="white",
+    bordercolor="black",
+    arrowcolor="black",
+    lightcolor="white",
+    darkcolor="white"
+)
+
+
+    
     return style
