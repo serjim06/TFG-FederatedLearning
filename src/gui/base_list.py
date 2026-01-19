@@ -92,8 +92,8 @@ class BaseListFrame(tk.Frame, ABC):
         container.rowconfigure(0, weight=1)
         
         for col_name, col_width in columns.items():
-            self.tree.heading(col_name, text=col_name, anchor="center")
-            self.tree.column(col_name, width=col_width, anchor="center", stretch=tk.YES)
+            self.tree.heading(col_name, text=col_name, anchor="w")
+            self.tree.column(col_name, width=col_width, anchor="w", stretch=tk.YES)
             
         self._initialize_tree()
     
