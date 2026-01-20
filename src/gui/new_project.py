@@ -22,6 +22,7 @@ class ScrollableNodesFrame(ttk.Frame):
         self.canvas = tk.Canvas(
             self,
             height=height,
+            width=300,
             highlightthickness=0,
             bg=bg
         )
@@ -29,7 +30,7 @@ class ScrollableNodesFrame(ttk.Frame):
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style="White.Vertical.TScrollbar")
 
         self.inner = ttk.Frame(self.canvas)
-        self.inner.configure(style="TFrame")
+        self.inner.configure(style="TFrame", width=300)
 
         self.inner.bind(
             "<Configure>",
@@ -62,27 +63,31 @@ class NewProject(ttk.Frame):
 
     def _build_ui(self):
         row = 0
+        
+        self.scrollable_frame = ScrollableNodesFrame(self, height=600)
+        self.scrollable_frame.grid(row=0, column=0, sticky="nsew")
+        self.scrollable_frame.columnconfigure(0, weight=1)
 
         # ---------- Nombre ----------
-        ttk.Label(self, text="Nombre:", background="#eef4fb").grid(row=row, column=0, sticky="w")
+        ttk.Label(self.scrollable_frame.inner, text="Nombre:", background="#eef4fb").grid(row=row, column=0, sticky="w")
         row += 1
 
-        self.name_entry = tk.Text(self, height=1, border=0.5, relief="solid")
+        self.name_entry = tk.Text(self.scrollable_frame.inner, height=1, border=0.5, relief="solid")
         self.name_entry.grid(row=row, column=0, sticky="ew", pady=(0, 10))
         row += 1
 
         # ---------- Descripción ----------
-        ttk.Label(self, text="Descripción:", background="#eef4fb").grid(row=row, column=0, sticky="w")
+        ttk.Label(self.scrollable_frame.inner, text="Descripción:", background="#eef4fb").grid(row=row, column=0, sticky="w")
         row += 1
 
-        self.description_text = tk.Text(self, height=4, border=0.5, relief="solid")
+        self.description_text = tk.Text(self.scrollable_frame.inner, height=4, border=0.5, relief="solid")
         self.description_text.grid(row=row, column=0, sticky="ew", pady=(0, 10))
         row += 1
 
        # ---------- Parámetros ----------
        
         self.params_button = tk.Label(
-            self, text="▶ Parámetros",
+            self.scrollable_frame.inner, text="▶ Parámetros",
             bg="#eef4fb",
             fg="#000000", cursor="hand2"
         )
@@ -92,7 +97,7 @@ class NewProject(ttk.Frame):
         row += 1
 
         # Fila RESERVADA para params_frame
-        self.params_frame = ttk.Frame(self)
+        self.params_frame = ttk.Frame(self.scrollable_frame.inner)
         self.params_frame.columnconfigure(0, weight=1)
         self.params_frame.grid(row=row, column=0, sticky="ew", padx=15)
         #self.params_frame.grid_remove()   # empieza oculto
@@ -260,14 +265,14 @@ class NewProject(ttk.Frame):
         ToolTip(self.learning_rate_label, text="Tasa de aprendizaje que determina el tamaño de los pasos que da el optimizador al actualizar los pesos del modelo durante el entrenamiento.")
         
         # ---------- Métricas ----------
-        self.metrics_label = ttk.Label(self, text="Métricas:", background="#eef4fb", cursor="question_arrow")
+        self.metrics_label = ttk.Label(self.scrollable_frame.inner, text="Métricas:", background="#eef4fb", cursor="question_arrow")
         self.metrics_label.grid(
             row=row, column=0, sticky="w", pady=(10, 0)
         )
         row += 1
 
         self.metrics_cb = ttk.Combobox(
-            self,
+            self.scrollable_frame.inner ,
             values=["categorical_crossentropy", "sparse_categorical_crossentropy", "binary_crossentropy", "mean_squared_error"],
             state="readonly"
         )
@@ -278,14 +283,15 @@ class NewProject(ttk.Frame):
         ToolTip(self.metrics_label, text="Métrica que se utilizará para evaluar el rendimiento del modelo entrenado.")
 
        # ---------- Nodos ----------
-        ttk.Label(self, text="Nodos:", background="#eef4fb").grid(
+        ttk.Label(self.scrollable_frame.inner, text="Nodos:", background="#eef4fb").grid(
             row=row, column=0, sticky="w", pady=(10, 0)
         )
         row += 1
 
         self.node_vars = {}
 
-        self.nodes_frame = ScrollableNodesFrame(self, height=140)
+        #self.nodes_frame = ScrollableNodesFrame(self.scrollable_frame.inner, height=140)
+        self.nodes_frame = tk.Frame(self.scrollable_frame.inner, background="#eef4fb", borderwidth=1, relief="solid")
         self.nodes_frame.grid(row=row, column=0, sticky="ews", pady=(5, 0))
 
         try:
@@ -296,7 +302,7 @@ class NewProject(ttk.Frame):
         for node_data in nodes:
             var = tk.BooleanVar()
             tk.Checkbutton(
-                self.nodes_frame.inner,
+                self.nodes_frame,
                 text=str(uuid.UUID(bytes=node_data["id"])),
                 variable=var,
                 background="#eef4fb"
@@ -342,8 +348,8 @@ class NewProjectDialog(tk.Toplevel):
         self.parent = parent
 
         self.title("Nuevo Proyecto")
-        self.geometry("480x825")
-        self.resizable(False, False)
+        self.geometry("700x720")
+        self.resizable(True, True)
 
         self.transient(parent)
         self.grab_set()
