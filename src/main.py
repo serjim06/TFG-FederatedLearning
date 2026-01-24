@@ -1,7 +1,7 @@
 import tkinter as tk
 from PIL import Image, ImageTk
 import uuid
-from src.gui import login, recover, register, dashboard, profile, modify, node_list
+from src.gui import login, recover, register, dashboard, profile, modify, node_list, user_list
 from src.utils.user import User
 from src.db import dbcon
 from src.models.node import Node
@@ -51,6 +51,9 @@ class App(tk.Tk):
         elif name == "nodes":
             self.geometry("1000x600")
             frame = node_list.NodeListFrame(self.container, self.show_frame)
+        elif name == "user_management":
+            self.geometry("1000x600")
+            frame = user_list.UserListFrame(self.container, self.show_frame, self.usuario_actual)
 
         self.frames[name] = frame
         frame.pack(fill="both", expand=True)

@@ -26,7 +26,7 @@ class NodeListFrame(BaseListFrame):
             ToolTip(self.delete_button, text="Eliminar el nodo seleccionado de la base de datos", delay=0.5)        
 
     def _user_management(self):
-        raise NotImplementedError()
+        self.switch_frame("user_management")
     
     def _add_item(self):
         try:
