@@ -49,7 +49,7 @@ class ScrollableNodesFrame(ttk.Frame):
 FORM_LABEL = "Form.TLabel"
 
 class NewProject(ttk.Frame):
-    def __init__(self, parent):
+    def __init__(self, parent, project):
         super().__init__(parent, padding=10)
         self.grid(sticky="nsew")
         self.configure(style="TFrame")
@@ -58,7 +58,8 @@ class NewProject(ttk.Frame):
         parent.rowconfigure(0, weight=1)
 
         self.columnconfigure(0, weight=1)
-
+        self.project = project
+        
         self._build_ui()
 
     def _build_ui(self):
@@ -92,7 +93,6 @@ class NewProject(ttk.Frame):
             fg="#000000", cursor="hand2"
         )
         
-        #self.params_button.bind("<Button-1>", lambda e: self._toggle_params())
         self.params_button.grid(row=row, column=0, sticky="w", pady=(5, 5))
         row += 1
 
@@ -100,7 +100,6 @@ class NewProject(ttk.Frame):
         self.params_frame = ttk.Frame(self.scrollable_frame.inner)
         self.params_frame.columnconfigure(0, weight=1)
         self.params_frame.grid(row=row, column=0, sticky="ew", padx=15)
-        #self.params_frame.grid_remove()   # empieza oculto
         row += 1
 
         # --- Optimizer ---
@@ -299,6 +298,10 @@ class NewProject(ttk.Frame):
         except (ValueError, DatabaseError) as e:
             messagebox.showerror("Error", str(e))
             
+        
+        if self.project != None:
+            self._load_project_data()
+            
         for node_data in nodes:
             var = tk.BooleanVar()
             tk.Checkbutton(
@@ -308,6 +311,49 @@ class NewProject(ttk.Frame):
                 background="#eef4fb"
             ).grid(row=len(self.node_vars)+1, column=0, sticky="w", padx=5)
             self.node_vars[str(uuid.UUID(bytes=node_data["id"]))] = var
+            
+        
+            
+    
+    def _load_project_data(self):
+        self.name_entry.insert("1.0", self.project["name"])
+        self.description_text.insert("1.0", self.project["description"])
+        
+        parameters = json.loads(self.project["parameters"])
+        
+        self.optimizer_cb.set(parameters.get("optimizer", "Adam"))
+        self.learning_rate.delete(0, "end")
+        self.learning_rate.insert(0, str(parameters.get("learning_rate", 0.01)))
+        self.epochs.delete(0, "end")
+        self.epochs.insert(0, str(parameters.get("epochs", 3)))
+        self.validation_split.delete(0, "end")
+        self.validation_split.insert(0, str(parameters.get("validation_split", 0.2)))
+        self.batch_size.delete(0, "end")
+        self.batch_size.insert(0, str(parameters.get("batch_size", 32)))
+        self.fraction_fit.delete(0, "end")
+        self.fraction_fit.insert(0, str(parameters.get("fraction_fit", 0.8)))
+        self.fraction_evaluate.delete(0, "end")
+        self.fraction_evaluate.insert(0, str(parameters.get("fraction_evaluate", 0.5)))
+        
+        self.aggregation_cb.set(self.project.get("aggregation_strategy", "fed_avg"))
+        self.metrics_cb.set(self.project.get("metrics", "categorical_crossentropy"))
+        
+        initial_nodes = json.loads(self.project["nodes"])
+        
+        for node_id in initial_nodes:
+            var = tk.BooleanVar()
+
+            tk.Checkbutton(
+                self.nodes_frame,
+                text=str(uuid.UUID(node_id)),
+                variable=var,
+                background="#eef4fb"
+            ).grid(row=len(self.node_vars)+1, column=0, sticky="w", padx=5)
+
+            self.node_vars[str(uuid.UUID(node_id))] = var
+
+                
+            self.node_vars[str(uuid.UUID(node_id))].set(True)
 
 
     def _toggle_params(self):
@@ -349,7 +395,7 @@ class NewProjectDialog(tk.Toplevel):
 
         self.title("Nuevo Proyecto")
         self.geometry("700x720")
-        self.resizable(True, True)
+        self.resizable(False, False)
 
         self.transient(parent)
         self.grab_set()
@@ -357,7 +403,7 @@ class NewProjectDialog(tk.Toplevel):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
-        self.form = NewProject(self)
+        self.form = NewProject(self, None)
 
         # ---------- Botones ----------
         btns = ttk.Frame(self, padding=10)
@@ -408,4 +454,90 @@ class NewProjectDialog(tk.Toplevel):
         self.parent._initialize_tree()
         messagebox.showinfo("Éxito", f"Proyecto '{data['name']}' creado correctamente.")
         
+        self.destroy()
+
+class SeeProjectDialog(tk.Toplevel):
+    def __init__(self, parent, project_id):
+        super().__init__(parent)
+        
+        self.project_id = project_id
+        self.parent = parent
+        
+        self.geometry("700x720")
+        self.resizable(False, False)
+        
+        self.transient(parent)
+        self.grab_set()
+
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+
+        self.project = dbcon.command("select", "projects", {"id": project_id})[0]
+        
+        self.title(f"Modificar Proyecto: {self.project['name']}")
+
+        
+
+        self.form = NewProject(self, self.project)
+
+        # ---------- Botones ----------
+        btns = ttk.Frame(self, padding=10)
+        btns.grid(row=1, column=0, sticky="ew")
+
+        btns.columnconfigure(0, weight=1)
+
+        inner = ttk.Frame(btns)
+        inner.pack(anchor="center")
+
+        ttk.Button(inner, text="Guardar Cambios", command=self._on_mod, style="Accent.TButton").pack(side="left")
+        ttk.Button(inner, text="Cancelar", command=self.destroy, style="Accent.TButton").pack(side="left", padx=(10, 0))
+        
+        
+    def _on_mod(self):
+        old_nodes_bytes = [uuid.UUID(node_id).bytes for node_id in json.loads(self.project["nodes"])]
+            
+        try:
+            data = self.form.get_data()
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+            return
+            
+        params_str = json.dumps(data["parameters"])
+        nodes_str = json.dumps(data["initial_nodes"])
+            
+        try:
+            dbcon.command("update", "projects", {
+                "id": self.project_id,
+                "uid": self.project["uid"],
+                "name": data["name"],
+                "description": data["description"],
+                "parameters": params_str,
+                "aggregation_strategy": data["aggregation_strategy"],
+                "metrics": data["metrics"],
+                "nodes": nodes_str
+            })
+            project = dbcon.command("select", "projects", {"name": data["name"], "uid": self.project["uid"]})
+                
+            nodes = json.loads(project[0]["nodes"])
+            print("Nodos del proyecto:", nodes)
+            nodes_bytes = [uuid.UUID(node_id).bytes for node_id in nodes]
+                
+            nodes_removed = set(old_nodes_bytes) - set(nodes_bytes)
+            
+            for node_id in nodes_removed:
+                self.parent._eliminate_dataset(node_id)
+                    
+                dbcon.command("update", "nodes", {"id": node_id, "valid": 0})
+
+            for nodes_id in nodes_bytes:
+                dbcon.command("update", "nodes", {"id": nodes_id, "valid": 1, "project_id": self.project_id})
+                
+                
+        except (ValueError, DatabaseError) as e:
+            messagebox.showerror("Error", str(e))
+            return
+            
+        self.parent._initialize_tree()
+        messagebox.showinfo("Éxito", f"Proyecto '{data['name']}' modificado correctamente.")
+            
         self.destroy()

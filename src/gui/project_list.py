@@ -8,7 +8,7 @@ import src.db.dbcon as dbcon
 import src.utils.icons.image_finder as image_finder
 from PIL import ImageTk, Image
 from TkToolTip import ToolTip
-from src.gui.new_project import NewProjectDialog
+from src.gui.new_project import NewProjectDialog, SeeProjectDialog
 from src.gui.base_list import SEC_BTN_STYLE, BaseListFrame
 
 
@@ -27,7 +27,7 @@ class ProjectListFrame(BaseListFrame):
             self.play_button.state(["disabled"])
             
             self.config_button = ttk.Button(self.toolbox, image=self.config_image, text="", compound="left",
-                       command=lambda e: print("no implementado"), width=2, style="Sec.TButton")
+                       command=self._config_project, width=2, style="Sec.TButton")
             self.config_button.pack(side="left", padx=5, pady=5)
             self.config_button.state(["disabled"])
         
@@ -40,6 +40,24 @@ class ProjectListFrame(BaseListFrame):
         super()._selected_item_changed()
         self.config_button.state(["!disabled"]) if self.tree.selection() else self.config_button.state(["disabled"])
         self.play_button.state(["!disabled"]) if self.tree.selection() else self.play_button.state(["disabled"])
+    
+    def _config_project(self):
+        seleccionado = self.tree.selection()
+        
+        if seleccionado:
+            item_id = seleccionado[0]
+            values = self.tree.item(item_id, "values") 
+            project_id = uuid.UUID(values[0]).bytes
+            
+            try:
+                project_data = dbcon.command("select", "projects", {"id": project_id})
+                print("carajo")
+                if project_data:
+                    SeeProjectDialog(self, project_id)
+            except (ValueError, DatabaseError) as e:
+                messagebox.showerror("Error", str(e))
+        else:
+            messagebox.showinfo("Información", "No hay ningún proyecto seleccionado para configurar.")
     
     def _add_item(self):
         try: 
