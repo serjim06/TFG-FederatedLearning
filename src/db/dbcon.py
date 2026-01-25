@@ -126,23 +126,30 @@ def _update(table, obj):
     finally:
         cursor.close()
 
-def _delete(table, obj):
-    if "id" not in obj:
-        raise ValueError("There is no id in the object")
+def _delete(table, where: dict):
+    if not where:
+        raise ValueError("WHERE clause cannot be empty")
 
-    obj_id = obj['id']
-    sql_cmd = f"DELETE FROM {table} WHERE id = ?"
+    clauses = []
+    values = []
+
+    for key, value in where.items():
+        clauses.append(f"{key} = ?")
+        values.append(value)
+
+    where_sql = " AND ".join(clauses)
+    sql_cmd = f"DELETE FROM {table} WHERE {where_sql}"
 
     try:
         cursor = database.cursor()
-        cursor.execute(sql_cmd, (obj_id,))
+        cursor.execute(sql_cmd, tuple(values))
         database.commit()
-        cursor.close()
-    except sqlite3.IntegrityError:
+    except sqlite3.IntegrityError as e:
         database.rollback()
-        raise DatabaseError("Error deleting object")
+        raise DatabaseError("Error deleting object") from e
     finally:
         cursor.close()
+
 
 def _select(table, obj):
     # Build filter object, but treat id == '*' as a request for all rows
