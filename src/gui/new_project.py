@@ -289,7 +289,6 @@ class NewProject(ttk.Frame):
 
         self.node_vars = {}
 
-        #self.nodes_frame = ScrollableNodesFrame(self.scrollable_frame.inner, height=140)
         self.nodes_frame = tk.Frame(self.scrollable_frame.inner, background="#eef4fb", borderwidth=1, relief="solid")
         self.nodes_frame.grid(row=row, column=0, sticky="ews", pady=(5, 0))
 

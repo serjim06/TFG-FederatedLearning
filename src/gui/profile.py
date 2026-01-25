@@ -12,7 +12,7 @@ class ProfileFrame(tk.Frame):
         self.usuario = usuario
         self.switch_frame = switch_frame
 
-        style = utils.get_style()
+        utils.get_style()
 
         # Texto general
         label_font = ("Segoe UI", 12)

@@ -17,7 +17,6 @@ class ProjectListFrame(BaseListFrame):
             super().__init__(parent, switch_frame, usuario, columns={"id": 330, "name": 55, "description": 600})
     
     def _insert_extra_buttons(self):
-            #TODO IMAGENES: VER?!?!?!?!
             self.config_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("settings")).resize((24,24)))
             self.play_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("play")).resize((24,24)))
             
