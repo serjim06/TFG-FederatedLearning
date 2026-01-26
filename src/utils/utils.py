@@ -1,5 +1,9 @@
 import tkinter.ttk as ttk
 
+SEC_TBUTTON_STYLE = "Sec.TButton"
+FONT = "Segoe UI"
+BG_COLOR = "#eef4fb"
+
 def get_style():
     """
         Creates a consistent style for every GUI
@@ -21,7 +25,7 @@ def get_style():
     # Botón principal
     style.configure(
         "Accent.TButton",
-        font=("Segoe UI", 11, "bold"),
+        font=(FONT, 11, "bold"),
         foreground="#ffffff",
         background="#4a90e2",
         padding=6,
@@ -34,14 +38,14 @@ def get_style():
     )
 
     style.configure(
-        "Sec.TButton",
+        SEC_TBUTTON_STYLE,
         foreground="#000000",
         background="#e0e4eb",
         padding=6,
         borderwidth=0
     )
 
-    style.map("Sec.TButton",
+    style.map(SEC_TBUTTON_STYLE,
               background=[("active", "#d3d7df"),
                           ("pressed", "#c7cbd5")],
               foreground=[("active", "black"),
@@ -63,20 +67,20 @@ def get_style():
                             foreground="#2b2b2b",
                             rowheight=26,
                             fieldbackground="#ffffff",
-                            font=("Segoe UI", 11),
+                            font=(FONT, 11),
                             borderwidth=0)
     style.configure("Treeview.Heading",
                             background="#f3f6fa",
                             foreground="#444",
                             relief="flat",
-                            font=("Segoe UI", 10))
+                            font=(FONT, 10))
     style.map("Treeview.Heading",
                       background=[("active", "#e5ebf3")])
     style.map("Treeview",
                       background=[("selected", "#e0e9f7")],
                       foreground=[("selected", "#000")])
     
-    style.configure("TFrame", background="#eef4fb")
+    style.configure("TFrame", background=BG_COLOR)
     
     style.map(
     "TCombobox",
@@ -86,7 +90,7 @@ def get_style():
     
     style.configure(
     "Form.TLabel",
-    background="#eef4fb"
+    background=BG_COLOR
     )
     
     style.configure(
