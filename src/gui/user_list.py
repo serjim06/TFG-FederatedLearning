@@ -1,8 +1,12 @@
 import tkinter as tk
+from tkinter import ttk
+from PIL import Image, ImageTk
 import uuid
 
 from src.db import dbcon
+from src.utils.icons import image_finder
 from src.utils.user import User
+from src.utils import utils
 from src.gui.user_info import UserInfoDialog
 
 class UserListFrame(tk.Frame):
@@ -11,8 +15,10 @@ class UserListFrame(tk.Frame):
         self.switch_frame = switch_frame
         self.user = usuario.to_dict()
         
-        self.canvas = tk.Canvas(self, borderwidth=0, background="#f0f0f0")
-        self.frame = tk.Frame(self.canvas, background="#f0f0f0")
+        self._setup_toolbox()
+        
+        self.canvas = tk.Canvas(self, borderwidth=0, background=utils.BG_COLOR)
+        self.frame = tk.Frame(self.canvas, background=utils.BG_COLOR)
         self.vsb = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vsb.set)
 
@@ -26,6 +32,21 @@ class UserListFrame(tk.Frame):
 
         self.populate()
         
+    def _setup_toolbox(self):
+        # botones comunes: user, add, delete
+        self.toolbox = tk.Frame(self, bg=utils.BG_COLOR, relief="raised", bd=2)
+        self.toolbox.pack(side="top", fill="x")
+        
+        self.return_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("return")).resize((24,24)))
+        
+        # ---- USER ----
+        self.return_button = ttk.Button(self.toolbox, image=self.return_image, text="", compound="left",
+                       command=self._return, width=2, style=utils.SEC_TBUTTON_STYLE)
+        self.return_button.pack(side="left", padx=5, pady=5)
+        
+    def _return(self):
+        self.switch_frame("dashboard")    
+    
     def populate(self):
         self.clear_users()
         self.users = dbcon.command("select", "users", {"id": "*"})
@@ -53,7 +74,7 @@ class UserListFrame(tk.Frame):
 
 class UserCard(tk.Frame):
     def __init__(self, parent : UserListFrame, user_data, user_list_frame):
-        super().__init__(parent, bg="#eeeeee", bd=1, relief="solid", padx=10, pady=10)
+        super().__init__(parent, bg=utils.BG_COLOR, bd=1, relief="solid", padx=10, pady=10)
         
         self.user_list_frame = user_list_frame
         
@@ -90,9 +111,9 @@ class UserCard(tk.Frame):
             w.configure(bg="#dddddd")
             
     def _hover_off(self, event):
-        self.configure(bg="#eeeeee")
+        self.configure(bg=utils.BG_COLOR)
         for w in self.winfo_children():
-            w.configure(bg="#eeeeee")
+            w.configure(bg=utils.BG_COLOR)
             
     def _on_click(self, event):
         UserInfoDialog(self.user_list_frame, self.user_data)
