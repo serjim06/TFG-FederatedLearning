@@ -451,7 +451,7 @@ class NewProjectDialog(tk.Toplevel):
             return
         
         self.parent._initialize_tree()
-        messagebox.showinfo("Éxito", f"Proyecto '{data['name']}' creado correctamente.")
+        messagebox.showinfo("Éxito", f"Proyecto '{data['name']}' creado correctamente.", parent=self)
         
         self.destroy()
 
