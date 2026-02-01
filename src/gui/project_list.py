@@ -13,39 +13,6 @@ from src.gui.base_list import SEC_BTN_STYLE, BaseListFrame
 from collections import Counter
 from math import sqrt
 
-
-"""
-para la barra de búsqueda con sugerencias:
-https://pythonguides.com/python-tkinter-search-box/
-
-cosine similarity between two words: for search suggestions
-# Source - https://stackoverflow.com/a
-# Posted by gboffi
-# Retrieved 2026-01-29, License - CC BY-SA 3.0
-
-def word2vec(word):
-    from collections import Counter
-    from math import sqrt
-
-    # count the characters in word
-    cw = Counter(word)
-    # precomputes a set of the different characters
-    sw = set(cw)
-    # precomputes the "length" of the word vector
-    lw = sqrt(sum(c*c for c in cw.values()))
-
-    # return a tuple
-    return cw, sw, lw
-
-def cosdis(v1, v2):
-    # which characters are common to the two words?
-    common = v1[1].intersection(v2[1])
-    # by definition of cosine distance we have
-    return sum(v1[0][ch]*v2[0][ch] for ch in common)/v1[2]/v2[2]
-
-
-"""
-
 class ProjectListFrame(BaseListFrame):
     def __init__(self, parent, switch_frame, usuario):
             super().__init__(parent, switch_frame, usuario, columns={"id": 330, "name": 55, "description": 600})
