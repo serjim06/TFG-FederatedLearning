@@ -15,7 +15,7 @@ from math import sqrt
 
 class ProjectListFrame(BaseListFrame):
     def __init__(self, parent, switch_frame, usuario):
-            super().__init__(parent, switch_frame, usuario, columns={"id": 330, "name": 55, "description": 600})
+            super().__init__(parent, switch_frame, usuario, columns={"id": 330, "name": 55, "description": 300, "pending": 15})
             
             self.winfo_toplevel().bind("<Configure>", self._reposition_suggestions)
     
@@ -126,6 +126,7 @@ class ProjectListFrame(BaseListFrame):
                 "id": uuid.UUID(values[0]).bytes,
                 "name": values[1],
                 "description": values[2],
+                "unconfirmed_results": values[3] == "True"
             }
             projects.append(project)
 
@@ -191,9 +192,7 @@ class ProjectListFrame(BaseListFrame):
         return [suggestion[0] for suggestion in sorted_suggestions[:max_suggestions]]
 
     def cosdis(self, v1, v2):
-        # which characters are common to the two words?
         common = v1[1].intersection(v2[1])
-        # by definition of cosine distance we have
         return sum(v1[0][ch]*v2[0][ch] for ch in common)/v1[2]/v2[2]
        
        
@@ -281,25 +280,44 @@ class ProjectListFrame(BaseListFrame):
         
         try:
             projects = dbcon.command("select", "projects", {"uid": self.usuario['id']})
+
+            formatted_projects = []
+
+            for p in projects:
+                pend = False if not p["unconfirmed_results"] else True
+                
+                p["unconfirmed_results"] = pend
+                formatted_projects.append(p)
+                
+                
+                
+                
+                
         except (ValueError, DatabaseError) as e:
             messagebox.showerror("Error", str(e))
 
         self.project_names = [project_data["name"] for project_data in projects]
 
-        self._insert_tree(projects)
+        self._insert_tree(formatted_projects)
 
     def _insert_tree(self, projects):
         self.layers = {}
 
+        not_img = Image.open(image_finder.find_image("pend_not")).resize((24,24))
         p_img = Image.open(image_finder.find_image("project"))
 
         self.project_image = ImageTk.PhotoImage(p_img)
+        self.pend_image = ImageTk.PhotoImage(not_img)
+
+
 
         for project_data in projects:
+            
+            
             if str(uuid.UUID(bytes=project_data["id"])) not in self.layers:
                 self.layers[str(uuid.UUID(bytes=project_data["id"]))] = self.tree.insert("", "end",
                                                                                 text="Project:",
-                                                                                values=(str(uuid.UUID(bytes=project_data["id"])), project_data["name"], project_data["description"]),
-                                                                                image=self.project_image)
+                                                                                values=(str(uuid.UUID(bytes=project_data["id"])), project_data["name"], project_data["description"], project_data["unconfirmed_results"]),
+                                                                                image=self.project_image if not project_data["unconfirmed_results"] else self.pend_image)
 
         self.tree.update_idletasks()
