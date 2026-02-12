@@ -284,7 +284,7 @@ class ProjectListFrame(BaseListFrame):
             formatted_projects = []
 
             for p in projects:
-                pend = False if not p["unconfirmed_results"] else True
+                pend = False if not json.loads(p["unconfirmed_results"]) else True
                 
                 p["unconfirmed_results"] = pend
                 formatted_projects.append(p)
