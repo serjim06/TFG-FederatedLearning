@@ -1,5 +1,10 @@
+import importlib
+import inspect
+import os
+import sys
 from src.db import dbcon
 import uuid
+from src.models.base_model import BaseModel
 
 default_parameters = {
     "optimizer": "adam",
@@ -113,3 +118,27 @@ class Project:
     
     def __setitem__(self, key, value):
         setattr(self, key, value)
+        
+        
+def cargar_modulo(ruta):
+    nombre_modulo = os.path.splitext(os.path.basename(ruta))[0]
+        
+    spec = importlib.util.spec_from_file_location(nombre_modulo, ruta)
+    modulo = importlib.util.module_from_spec(spec)
+    sys.modules[nombre_modulo] = modulo
+    spec.loader.exec_module(modulo)
+        
+    return modulo
+    
+def verificar_modulo(modulo):
+    """Verifica que el módulo cargado contenga una clase que herede de BaseModel.
+    Args:
+        modulo: El módulo cargado dinámicamente.
+    Returns: 
+        La clase que hereda de BaseModel si se encuentra, o None si no se encuentra.
+    """
+    for _, obj in inspect.getmembers(modulo, inspect.isclass):
+        if issubclass(obj, BaseModel) and obj is not BaseModel:
+            return obj
+    return None
+    

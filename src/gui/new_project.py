@@ -1,8 +1,12 @@
 import json
+import os
+from pathlib import Path
+import shutil
 from sqlite3 import DatabaseError
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
+from tkinter import filedialog
 import uuid
 
 from PIL import Image, ImageTk
@@ -11,6 +15,7 @@ from TkToolTip import ToolTip
 from src.utils.icons import image_finder
 from src.db import dbcon
 from src.projects.projects import Project
+from src.projects.projects import cargar_modulo, verificar_modulo
 
 class ScrollableNodesFrame(ttk.Frame):
     def __init__(self, parent, height=150):
@@ -49,10 +54,12 @@ class ScrollableNodesFrame(ttk.Frame):
 FORM_LABEL = "Form.TLabel"
 
 class NewProject(ttk.Frame):
-    def __init__(self, parent, project):
+    def __init__(self, parent, project, user_id=None):
         super().__init__(parent, padding=10)
         self.grid(sticky="nsew")
         self.configure(style="TFrame")
+        
+        self.user_id = user_id
 
         parent.columnconfigure(0, weight=1)
         parent.rowconfigure(0, weight=1)
@@ -84,6 +91,18 @@ class NewProject(ttk.Frame):
         self.description_text = tk.Text(self.scrollable_frame.inner, height=4, border=0.5, relief="solid")
         self.description_text.grid(row=row, column=0, sticky="ew", pady=(0, 10))
         row += 1
+
+        # ---------- Modelo ----------
+        self.model_frame = ttk.Frame(self.scrollable_frame.inner, height=2, border=0.5, relief="solid")
+        self.model_frame.grid(row=row, column=0, sticky="ew", pady=(0, 10))
+        row += 1
+        
+        self.model_name = tk.StringVar()
+        self.model_name.set("Ningún modelo seleccionado")
+        self.model_name_label = tk.Label(self.model_frame, textvariable=self.model_name, background="#eef4fb")
+        self.model_name_label.pack(side="left", padx=10, pady=5)
+        self.model_select_btn = ttk.Button(self.model_frame, text="Seleccionar", command=self._select_model, style="Sec.TButton")
+        self.model_select_btn.pack(side="right", padx=10, pady=5)
 
        # ---------- Parámetros ----------
        
@@ -312,7 +331,62 @@ class NewProject(ttk.Frame):
             self.node_vars[str(uuid.UUID(bytes=node_data["id"]))] = var
             
         
+    def _select_model(self):
+        """Selecciona un archivo con un modelo que herede de BaseModel, lo copia a la carpeta del proyecto, y carga sus características de entrada y salida."""
+        try:
+            ruta_inicial = filedialog.askopenfilename(
+                filetypes=[("Python files", "*.py")]
+            )
             
+            
+            if ruta_inicial:
+                modulo = cargar_modulo(ruta_inicial)
+
+                clase = verificar_modulo(modulo)
+                
+                if not clase:
+                    messagebox.showerror("Error", "El módulo seleccionado no contiene una clase válida que herede de BaseModel.")
+                    return
+                
+                self.model_class_name = clase.__name__
+                nombre_modulo = os.path.basename(ruta_inicial)
+                self.model_name.set(nombre_modulo)
+                
+                self.input_features, self.output_features = self._load_features(clase)
+                
+                self.ruta = self._copy_model(ruta_inicial)
+                self.ruta = Path(self.ruta).as_posix()
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al cargar el modelo: {str(e)}")
+            return
+                        
+    def _copy_model(self, ruta_inicial):
+        """Copia el archivo del modelo seleccionado a la carpeta del proyecto y devuelve la ruta relativa al archivo copiado."""
+        base_dir = os.path.join(os.getcwd(), "database", "models", str(uuid.UUID(bytes=self.user_id)))     
+        
+        nombre_archivo = os.path.basename(ruta_inicial)
+        destino = os.path.join(base_dir, nombre_archivo) 
+        os.makedirs(base_dir, exist_ok=True)
+        try:
+            shutil.copy2(ruta_inicial, destino)
+            
+            return os.path.relpath(destino, start=os.getcwd())  
+        
+        except Exception as e:
+            raise OSError(f"No se pudo copiar el archivo: {str(e)}")
+            
+    def _load_features(self, clase):
+        """Instancia la clase del modelo y llama a su método get_features() para obtener las características de entrada y salida."""
+        modelo = clase()
+        required_keys = {"input_features", "output_features"}
+        
+        features = modelo.get_features() 
+            
+        if not isinstance(features, dict) or not required_keys.issubset(features.keys()) or not all(isinstance(features[key], list) for key in required_keys):
+            raise ValueError("El método get_features() debe retornar un diccionario con las claves 'input_features' y 'output_features', cuyos valores deben ser listas de nombres de características.")
+            
+        return features["input_features"], features["output_features"]    
+                   
     
     def _load_project_data(self):
         self.name_entry.insert("1.0", self.project["name"])
@@ -383,6 +457,9 @@ class NewProject(ttk.Frame):
             "aggregation_strategy": self.aggregation_cb.get(),
             "initial_nodes": [node_id for node_id, var in self.node_vars.items() if var.get()],
             "metrics": self.metrics_cb.get(),
+            "model_path": self.ruta,
+            "input_features": self.input_features,
+            "output_features": self.output_features
         }
 
 class NewProjectDialog(tk.Toplevel):
@@ -401,8 +478,8 @@ class NewProjectDialog(tk.Toplevel):
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
-
-        self.form = NewProject(self, None)
+        
+        self.form = NewProject(self, None, user_id)
 
         # ---------- Botones ----------
         btns = ttk.Frame(self, padding=10)
@@ -427,6 +504,8 @@ class NewProjectDialog(tk.Toplevel):
         
         params_str = json.dumps(data["parameters"])
         nodes_str = json.dumps(data["initial_nodes"])
+        input_features_str = json.dumps(data["input_features"])
+        output_features_str = json.dumps(data["output_features"])
         
         try:
             dbcon.command("insert", "projects", {
@@ -436,7 +515,11 @@ class NewProjectDialog(tk.Toplevel):
                 "parameters": params_str,
                 "aggregation_strategy": data["aggregation_strategy"],
                 "metrics": data["metrics"],
-                "nodes": nodes_str
+                "nodes": nodes_str,
+                "model_path": data["model_path"],
+                "input_features": input_features_str,
+                "output_features": output_features_str,
+                "unconfirmed_results": json.dumps([])
             })
             project = dbcon.command("select", "projects", {"name": data["name"], "uid": self.user_id})
             
@@ -475,13 +558,18 @@ class SeeProjectDialog(tk.Toplevel):
         
         self.title(f"Modificar Proyecto: {self.project['name']}")
 
-        
+        btns_row = 1
+
+
+        if not json.loads(self.project["unconfirmed_results"]):
+            ttk.Button(self, text="Confirmar Resultados Pendientes", command=self._confirm_results, style="Accent.TButton", width=self.winfo_width() - 20).grid(row=0, column=0, sticky="ew", padx=10, pady=5)
+            btns_row += 1
 
         self.form = NewProject(self, self.project)
 
         # ---------- Botones ----------
         btns = ttk.Frame(self, padding=10)
-        btns.grid(row=1, column=0, sticky="ew")
+        btns.grid(row=btns_row, column=0, sticky="ew")
 
         btns.columnconfigure(0, weight=1)
 
@@ -491,6 +579,8 @@ class SeeProjectDialog(tk.Toplevel):
         ttk.Button(inner, text="Guardar Cambios", command=self._on_mod, style="Accent.TButton").pack(side="left")
         ttk.Button(inner, text="Cancelar", command=self.destroy, style="Accent.TButton").pack(side="left", padx=(10, 0))
         
+    def _confirm_results(self):
+        print("HAY RESULTADOS POR CONFIRMAR")
         
     def _on_mod(self):
         old_nodes_bytes = [uuid.UUID(node_id).bytes for node_id in json.loads(self.project["nodes"])]
