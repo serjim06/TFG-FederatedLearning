@@ -7,5 +7,6 @@ authors = [{ name = "Sergio" }]
 
 [dependencies]
 dependencies = [
-    "pillow"
+    "pillow",
+    "torch"
 ]
