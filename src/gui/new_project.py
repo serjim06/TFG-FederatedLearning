@@ -413,6 +413,9 @@ class NewProject(ttk.Frame):
         
         initial_nodes = json.loads(self.project["nodes"])
         
+        self.model_select_btn.pack_forget()
+        self.model_name.set(os.path.basename(self.project["model_path"]))
+        
         for node_id in initial_nodes:
             var = tk.BooleanVar()
 
