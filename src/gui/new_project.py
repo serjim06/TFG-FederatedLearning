@@ -16,20 +16,21 @@ from src.utils.icons import image_finder
 from src.db import dbcon
 from src.projects.projects import Project
 from src.projects.projects import cargar_modulo, verificar_modulo
+from src.gui.confirm_results import ConfirmResultsFrame
+from src.utils import utils
 
 class ScrollableNodesFrame(ttk.Frame):
     def __init__(self, parent, height=150):
         super().__init__(parent)
 
-        style = ttk.Style()
-        bg = style.lookup("TFrame", "background")
+        style = utils.get_style()
 
         self.canvas = tk.Canvas(
             self,
             height=height,
             width=300,
             highlightthickness=0,
-            bg=bg
+            bg=utils.BG_COLOR
         )
 
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style="White.Vertical.TScrollbar")
@@ -553,37 +554,66 @@ class SeeProjectDialog(tk.Toplevel):
         
         self.transient(parent)
         self.grab_set()
+        
+        self.configure(bg=utils.BG_COLOR)
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
+        self._build_modify_ui(project_id)
+        
+        
+    
+    def _build_modify_ui(self, project_id):
+        for widget in self.winfo_children():
+            widget.destroy()
         self.project = dbcon.command("select", "projects", {"id": project_id})[0]
+        
+        
+                
+        dbcon.command("update", "projects", {"id": project_id, "unconfirmed_results": json.dumps([{"feature1":"hola","feature2":"hola","label":"adios"}])})
+            
+        print("AÑADIDO CONFIRMACIÓN DE PRUEBA")
+            
         
         self.title(f"Modificar Proyecto: {self.project['name']}")
 
-        btns_row = 1
+        self.btns_row = 1
 
+        self.unconfirmed = json.loads(self.project["unconfirmed_results"])
 
-        if not json.loads(self.project["unconfirmed_results"]):
+        if self.unconfirmed:
             ttk.Button(self, text="Confirmar Resultados Pendientes", command=self._confirm_results, style="Accent.TButton", width=self.winfo_width() - 20).grid(row=0, column=0, sticky="ew", padx=10, pady=5)
-            btns_row += 1
+            self.btns_row += 1
 
         self.form = NewProject(self, self.project)
+        
 
         # ---------- Botones ----------
-        btns = ttk.Frame(self, padding=10)
-        btns.grid(row=btns_row, column=0, sticky="ew")
+        btns = ttk.Frame(self, padding=10, style="TFrame")
+        btns.grid(row=self.btns_row, column=0, sticky="ew")
 
         btns.columnconfigure(0, weight=1)
 
-        inner = ttk.Frame(btns)
+        inner = ttk.Frame(btns, style="TFrame")
         inner.pack(anchor="center")
 
         ttk.Button(inner, text="Guardar Cambios", command=self._on_mod, style="Accent.TButton").pack(side="left")
         ttk.Button(inner, text="Cancelar", command=self.destroy, style="Accent.TButton").pack(side="left", padx=(10, 0))
-        
+    
     def _confirm_results(self):
-        print("HAY RESULTADOS POR CONFIRMAR")
+        for widget in self.winfo_children():
+            widget.destroy()
+        confirm = ConfirmResultsFrame(self, self.unconfirmed, {"in_features": self.project["input_features"], "out_features": self.project["output_features"]})
+        confirm.pack(fill="both", expand=True)
+        
+        buttons = ttk.Frame(self, padding=10, style="TFrame")
+        buttons.pack(fill="x", side="bottom")
+        
+        ttk.Button(buttons, text="Volver", command=lambda: self._build_modify_ui(self.project_id), style="Accent.TButton").pack(expand=True)
+        
+        
+        
         
     def _on_mod(self):
         old_nodes_bytes = [uuid.UUID(node_id).bytes for node_id in json.loads(self.project["nodes"])]
@@ -609,7 +639,6 @@ class SeeProjectDialog(tk.Toplevel):
                 "nodes": nodes_str
             })
             project = dbcon.command("select", "projects", {"name": data["name"], "uid": self.project["uid"]})
-                
             nodes = json.loads(project[0]["nodes"])
             print("Nodos del proyecto:", nodes)
             nodes_bytes = [uuid.UUID(node_id).bytes for node_id in nodes]

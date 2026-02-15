@@ -101,8 +101,31 @@ def get_style():
     arrowcolor="black",
     lightcolor="white",
     darkcolor="white"
-)
+    )
+    
+    style.map("White.Vertical.TScrollbar",
+        background=[('pressed', 'white'), ('active', '#f0f0f0')],
+        troughcolor=[('pressed', 'white'), ('active', 'white')],
+        lightcolor=[('pressed', 'white'), ('active', 'white')],
+        darkcolor=[('pressed', 'white'), ('active', 'white')]
+    )
 
+    style.configure(
+    "White.Horizontal.TScrollbar",
+    background="white",
+    troughcolor="white",
+    bordercolor="black",
+    arrowcolor="black",
+    lightcolor="white",
+    darkcolor="white"
+    )
+    
+    style.map("White.Horizontal.TScrollbar",
+        background=[('pressed', 'white'), ('active', '#f0f0f0')],
+        troughcolor=[('pressed', 'white'), ('active', 'white')],
+        lightcolor=[('pressed', 'white'), ('active', 'white')],
+        darkcolor=[('pressed', 'white'), ('active', 'white')]
+    )
 
     
     return style
