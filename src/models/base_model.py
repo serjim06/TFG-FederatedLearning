@@ -18,6 +18,34 @@ class BaseModel(ABC):
     
     @abstractmethod
     def predict(self, input_data):
+        """
+        Predicts using the model. The output should be a dictionary with the following structure:
+        ```
+        {
+            "type": "classification" | "regression" | "multi_output",
+            "output": raw_output,
+            "labels": label_output (only for classification),
+            "output_info": {
+                "names": [...],   # optional, each output feature name
+                "dtype": [...]    # optional, output data type
+            }
+        }
+        ```
+        
+        One example of a valid output for a classification model could be:
+        ```
+        {
+            "type": "classification",
+            "output": 1, # The predicted class index (e.g., 1 out of [0.1, 0.7, 0.2])
+            "labels": ["cat", "dog", "mouse"],
+            "output_info": {
+                "names": ["species"],
+                "dtype": ["str"]
+            }
+        }
+        ```
+        """
+        
         pass
     
     @abstractmethod
