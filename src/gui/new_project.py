@@ -571,7 +571,9 @@ class SeeProjectDialog(tk.Toplevel):
         
         
                 
-        dbcon.command("update", "projects", {"id": project_id, "unconfirmed_results": json.dumps([{"feature1":"hola","feature2":"hola","label":"adios"}])})
+        dbcon.command("update", "projects", {"id": project_id, 
+                                             "unconfirmed_results": 
+                                                 json.dumps([{"node": json.loads(self.project["nodes"])[0],"data":{"feature1":"hola","feature2":"hola","label":"adios"}}])})
             
         print("AÑADIDO CONFIRMACIÓN DE PRUEBA")
             
