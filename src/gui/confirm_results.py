@@ -1,6 +1,8 @@
 import json
 import tkinter as tk
 from tkinter import ttk
+from pathlib import Path
+from tkinter import messagebox
 
 from src.utils import utils
 
@@ -67,7 +69,14 @@ class ConfirmResultsFrame (tk.Frame):
         ttk.Button(buttons_frame, text="Incorrecto", style=utils.SEC_TBUTTON_STYLE, command=lambda e: self._wrong_result(row)).grid(row=0, column=1, padx=5, pady=5)
 
     def _confirm_result(self, row):
-        pass
+        with open(Path(Path.cwd(), "database", "datasets", self.pending[row]["node"], "dataset.csv"), "w") as f:
+            for _, feature in self.pending[row].items():
+                f.write(feature)
+                f.write(",")
+            f.write("\n")
+        
+        messagebox.showinfo("Confirmación", f"Resultado confirmado para el nodo {self.pending[row]['node']}")
+        
     
     def _wrong_result(self, row):
         pass
