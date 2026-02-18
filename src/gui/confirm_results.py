@@ -6,6 +6,81 @@ from tkinter import messagebox
 
 from src.utils import utils
 
+class CorrectResultDialog(tk.Toplevel):
+    def __init__(self, parent, row, out_features):
+        super().__init__(parent)
+
+        self.title("Corregir resultado")
+        self.geometry("400x300")
+        self.configure(bg=utils.BG_COLOR)
+        self.resizable(False, False)
+        
+        self.parent = parent
+        self.row = row
+        self.out_features = dict.fromkeys(out_features, "")
+        
+        tk.Label(
+            self,
+            text="Introduce los datos correctos para el nodo",
+            background=utils.BG_COLOR
+        ).pack(pady=10)
+        
+        ttk.Button(
+            self,
+            text="Guardar",
+            style=utils.SEC_TBUTTON_STYLE,
+            command=self._save
+        ).pack(side="bottom",pady=10)
+
+        container = tk.Frame(self, bg=utils.BG_COLOR)
+        container.pack(fill="both", expand=True)
+
+        self.canvas = tk.Canvas(container, bg=utils.BG_COLOR, highlightthickness=0)
+        self.canvas.pack(side="left", fill="both", expand=True, padx=15, pady=15)
+
+        self.scroll_y = ttk.Scrollbar(
+            container,
+            orient="vertical",
+            command=self.canvas.yview,
+            style="White.Vertical.TScrollbar"
+        )
+
+        self.canvas.configure(yscrollcommand=self.scroll_y.set)
+
+        inner_frame = tk.Frame(self.canvas, bg=utils.BG_COLOR)
+        self.canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+
+        self.entries = {}
+
+        row_index = 0
+        for key in out_features:
+            tk.Label(inner_frame, text=key, background=utils.BG_COLOR).grid(row=row_index, column=0, padx=5, pady=5)
+
+            entry = ttk.Entry(inner_frame)
+            entry.grid(row=row_index, column=1, padx=5, pady=5)
+
+            self.entries[key] = entry
+            row_index += 1
+
+        self.update_idletasks()
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+        content_height = self.canvas.bbox("all")[3]
+        canvas_height = self.canvas.winfo_height()
+
+        if content_height > canvas_height:
+            self.scroll_y.pack(side="right", fill="y")
+
+
+    def _save(self):
+        for key, entry in self.entries.items():
+            self.out_features[key] = entry.get()
+        
+        
+        self.parent.correct_result(self.row, self.out_features)
+        self.destroy()
+        
+
 class ConfirmResultsFrame (tk.Frame):
     def __init__(self, parent, pending, labels):
         super().__init__(parent)
@@ -55,32 +130,89 @@ class ConfirmResultsFrame (tk.Frame):
         row = 1
         
         for pend in self.pending:
-            for _, value in pend.items():
+            for _, value in pend["data"].items():
                 tk.Label(self.table_frame, text=value, background=utils.BG_COLOR).grid(row=row, column=col, padx=5, pady=5)
                 col+=1
             self._inner_buttons(row, col)
             col=0
             row+=1
+            
                 
     def _inner_buttons(self, row, col):
         buttons_frame = tk.Frame(self.table_frame, bg=utils.BG_COLOR)
         buttons_frame.grid(row=row, column=col, padx=5, pady=5, sticky="e")
-        ttk.Button(buttons_frame, text="Correcto", style=utils.SEC_TBUTTON_STYLE, command=lambda e: self._confirm_result(row)).grid(row=0, column=0, padx=5, pady=5)
-        ttk.Button(buttons_frame, text="Incorrecto", style=utils.SEC_TBUTTON_STYLE, command=lambda e: self._wrong_result(row)).grid(row=0, column=1, padx=5, pady=5)
+        ttk.Button(buttons_frame, text="Correcto", style=utils.SEC_TBUTTON_STYLE, command=lambda: self._confirm_result(row)).grid(row=0, column=0, padx=5, pady=5)
+        ttk.Button(buttons_frame, text="Incorrecto", style=utils.SEC_TBUTTON_STYLE, command=lambda: self._wrong_result(row)).grid(row=0, column=1, padx=5, pady=5)
+
 
     def _confirm_result(self, row):
-        with open(Path(Path.cwd(), "database", "datasets", self.pending[row]["node"], "dataset.csv"), "w") as f:
-            for _, feature in self.pending[row].items():
-                f.write(feature)
+        path = Path(Path.cwd(), "database", "datasets", self.pending[row-1]["node"], "dataset.csv")
+        
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w") as f:
+                for labels in json.loads(self.labels["in_features"]):
+                    f.write(labels)
+                    f.write(",")
+                for labels in json.loads(self.labels["out_features"]):
+                    f.write(labels)
+                    f.write(",")
+                f.write("\n")
+                
+        with open(path, "a") as f:
+            for _, feature in self.pending[row-1]["data"].items():
+                f.write(feature)    
                 f.write(",")
             f.write("\n")
         
-        messagebox.showinfo("Confirmación", f"Resultado confirmado para el nodo {self.pending[row]['node']}")
+        messagebox.showinfo("Confirmación", f"Resultado confirmado para el nodo {self.pending[row-1]['node']}", parent=self)
+        del self.pending[row-1]
+        
+        for widget in self.table_frame.winfo_children():
+            widget.destroy()
+            
+        self._build_ui()
         
     
     def _wrong_result(self, row):
-        pass
+        correct_dialog = CorrectResultDialog(self, row, json.loads(self.labels["out_features"]))
+        correct_dialog.transient(self)
+        correct_dialog.wait_visibility()
+        correct_dialog.grab_set()
+        correct_dialog.focus_set()
         
+    def correct_result(self, row, out_features):
+        path = Path(Path.cwd(), "database", "datasets", self.pending[row-1]["node"], "dataset.csv")
+        
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w") as f:
+                for labels in json.loads(self.labels["in_features"]):
+                    f.write(labels)
+                    f.write(",")
+                for labels in json.loads(self.labels["out_features"]):
+                    f.write(labels)
+                    f.write(",")
+                f.write("\n")
+        
+        with open(path, "a") as f:
+            for key, feature in self.pending[row-1]["data"].items():
+                if key in json.loads(self.labels["in_features"]):
+                    f.write(feature)
+                    f.write(",")
+            for key, value in out_features.items():
+                f.write(value)
+                f.write(",")
+            f.write("\n")
+        
+        messagebox.showinfo("Confirmación", f"Resultado corregido para el nodo {self.pending[row-1]['node']}", parent=self)
+        del self.pending[row-1]
+        
+        for widget in self.table_frame.winfo_children():
+            widget.destroy()
+            
+        self._build_ui()
+    
     def _on_configure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
