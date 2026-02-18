@@ -146,7 +146,7 @@ class ProjectListFrame(BaseListFrame):
             
             suggestions.append((project, similarity))
         
-        sorted_suggestions = sorted(suggestions, reverse = True, key=lambda suggestion: suggestion[1]) #orders by similarity
+        sorted_suggestions = sorted(suggestions, reverse = True, key=lambda suggestion: suggestion[1])
         
         projects_ordered = [sugg[0] for sugg in sorted_suggestions]
         
