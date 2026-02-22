@@ -608,8 +608,7 @@ class SeeProjectDialog(tk.Toplevel):
     def _confirm_results(self):
         for widget in self.winfo_children():
             widget.destroy()
-        #confirm = ConfirmResultsFrame(self, self.unconfirmed, {"in_features": self.project["input_features"], "out_features": self.project["output_features"]}, self.project["training_round"])
-        confirm = ConfirmResultsFrame(self, self.unconfirmed, {"in_features": self.project["input_features"], "out_features": self.project["output_features"]}, 200)
+        confirm = ConfirmResultsFrame(self, self.unconfirmed, {"in_features": self.project["input_features"], "out_features": self.project["output_features"]}, self.project["training_round"])
         confirm.pack(fill="both", expand=True)
         
         buttons = ttk.Frame(self, padding=10, style="TFrame")

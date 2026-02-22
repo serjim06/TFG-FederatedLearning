@@ -51,6 +51,19 @@ class BaseModel(ABC):
     @abstractmethod
     def get_features(self) -> dict:
         """
-        Returns a dictionary containing the input and output features of the model. The keys should be 'input_features' and 'output_features', and the values should be lists of feature names.
+        Returns a dictionary containing the input and output features of the model, and some metadata for the training report.
+        
+        The dictionary should have the following structure:
+        ```
+        {
+            "input_features": [...],   # list of input feature names
+            "output_features": [...],  # list of output feature names
+            "metadata": {
+                "type": "regression" | "classification",
+                "units": "..." # units of the output features
+                "labels": [...] # labels for the output features (only for classification)
+            }
+        }
+        ```
         """
         pass
