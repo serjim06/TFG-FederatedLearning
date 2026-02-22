@@ -2,11 +2,11 @@ import json
 import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
-from tkinter import messagebox
 import re
 import shutil
 
 from src.utils import utils
+from src.gui import dialogs
 
 class CorrectResultDialog(tk.Toplevel):
     def __init__(self, parent, row, out_features):
@@ -158,7 +158,7 @@ class ConfirmResultsFrame (tk.Frame):
                 f.write(",")
             f.write("\n")
         
-        messagebox.showinfo("Confirmación", f"Resultado confirmado para el nodo {self.pending[row-1]['node']}", parent=self)
+        dialogs.InfoDialog(self, "Confirmación", f"Resultado confirmado para el nodo {self.pending[row-1]['node']}", "info")
         del self.pending[row-1]
         
         for widget in self.table_frame.winfo_children():
@@ -225,7 +225,7 @@ class ConfirmResultsFrame (tk.Frame):
                 f.write(",")
             f.write("\n")
         
-        messagebox.showinfo("Confirmación", f"Resultado corregido para el nodo {self.pending[row-1]['node']}", parent=self)
+        dialogs.InfoDialog(self, "Confirmación", f"Resultado corregido para el nodo {self.pending[row-1]['node']}", "info")
         del self.pending[row-1]
         
         for widget in self.table_frame.winfo_children():

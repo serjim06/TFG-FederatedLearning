@@ -1,6 +1,7 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from src.db import dbcon
+from src.gui import dialogs
 from src.utils.user import User
 import src.utils.utils as utils
 
@@ -50,13 +51,13 @@ class RecoverFrame(tk.Frame):
     def _verify_user(self):
         user = self.user_entry.get().strip()
         if not user:
-            messagebox.showerror("Error", "Introduce un usuario o email")
+            dialogs.InfoDialog(self, "Error", "Introduce un usuario o email", "error")
             return
 
         try:
             result = dbcon.command("select","users", {"username": user})
             if not result:
-                messagebox.showerror("Error", "Usuario no existe")
+                dialogs.InfoDialog(self, "Error", "Usuario no existe", "error")
                 return
 
             self.new_user = User(**result[0])
@@ -74,7 +75,7 @@ class RecoverFrame(tk.Frame):
             self.reset_button.pack(pady=20, ipadx=10, ipady=5)
 
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return
 
 
@@ -84,19 +85,19 @@ class RecoverFrame(tk.Frame):
         conf_pass = self.conf_new_password_entry.get()
 
         if not new_pass or not conf_pass:
-            messagebox.showerror("Error", "Rellena todos los campos")
+            dialogs.InfoDialog(self, "Error", "Rellena todos los campos", "error")
             return
         if new_pass != conf_pass:
-            messagebox.showerror("Error", "Las contraseñas no coinciden")
+            dialogs.InfoDialog(self, "Error", "Las contraseñas no coinciden", "error")
             return
 
         try:
             self.new_user['password'] = new_pass
             dbcon.command("update","users", self.new_user.to_dict())
 
-            messagebox.showinfo("Éxito", "Contraseña actualizada correctamente")
+            dialogs.InfoDialog(self, "Éxito", "Contraseña actualizada correctamente", "info")
             self.switch_frame("login")
 
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return

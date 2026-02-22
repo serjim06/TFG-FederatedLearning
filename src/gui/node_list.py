@@ -1,6 +1,6 @@
 from sqlite3 import DatabaseError
 from tkinter import ttk
-from tkinter import messagebox
+from src.gui import dialogs
 import uuid
 from src.models.node import Node
 import src.db.dbcon as dbcon
@@ -36,7 +36,7 @@ class NodeListFrame(BaseListFrame):
             
             dbcon.command("update", "nodes", {"id":node.id, "local_dataset_path": node.local_dataset_path})
         except (ValueError, DatabaseError) as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return
         
         self.tree.insert("", 0, values=(
@@ -45,7 +45,7 @@ class NodeListFrame(BaseListFrame):
             self._parse_path(node.local_dataset_path)
         ), image=self.node_image)
         self.tree.update_idletasks()
-        messagebox.showinfo("Éxito", "Nodo agregado con éxito.")  
+        dialogs.InfoDialog(self, "Éxito", "Nodo agregado con éxito.", "info")  
     
     def _delete_item(self):
         seleccionado = self.tree.selection()
@@ -55,11 +55,11 @@ class NodeListFrame(BaseListFrame):
             for item in seleccionado:
                 item_id = item
                 if item_id in self.layers.values():
-                    messagebox.showwarning("Advertencia", "No se pueden eliminar proyectos.")
+                    dialogs.InfoDialog(self, "Advertencia", "No se pueden eliminar proyectos.", "warning")
                     canceled.append(item)
                     continue
                 layer_id = self.tree.parent(item_id)
-                if layer_id and not messagebox.askyesno("Confirmar Eliminación", f"El nodo con id {self.tree.item(item_id, 'values')[0]} pertenece a un proyecto activo de un usuario. ¿Estás seguro de que deseas eliminar este nodo?"):
+                if layer_id and not dialogs.OptionDialog.ask(self, "Confirmar Eliminación", f"El nodo con id {self.tree.item(item_id, 'values')[0]} pertenece a un proyecto activo de un usuario. ¿Estás seguro de que deseas eliminar este nodo?"):
                     canceled.append(item)
                     continue
                     
@@ -69,24 +69,24 @@ class NodeListFrame(BaseListFrame):
                 try:
                     self._eliminate_dataset(node_id)
                 except Exception as e:
-                    messagebox.showerror("Error", f"No se pudo eliminar el dataset asociado al nodo: {e}")
+                    dialogs.InfoDialog(self, "Error", f"No se pudo eliminar el dataset asociado al nodo: {e}", "error")
                     canceled.append(item)
                     continue
             
                 try:
                     dbcon.command("delete", "nodes", {"id": node_id})
                 except (ValueError, DatabaseError) as e:
-                    messagebox.showerror("Error", str(e))
+                    dialogs.InfoDialog(self, "Error", str(e), "error")
                 
             self._update_tree_after_delete(seleccionado, canceled)
         else:
-            messagebox.showinfo("Información", "No hay ningún nodo seleccionado para eliminar.")
+            dialogs.InfoDialog(self, "Información", "No hay ningún nodo seleccionado para eliminar.", "info")
             
     def _initialize_tree(self):
         try:
             nodes = dbcon.command("select", "nodes", {"id": "*"})
         except (ValueError, DatabaseError) as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
 
         self.layers = {}
 

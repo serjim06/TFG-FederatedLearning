@@ -1,8 +1,9 @@
 import tkinter as tk
 from sqlite3 import DatabaseError
-from tkinter import ttk, messagebox
+from tkinter import ttk
 import src.utils.utils as utils
 from src.db import dbcon
+from src.gui import dialogs
 
 
 class RegisterFrame(tk.Frame):
@@ -48,11 +49,11 @@ class RegisterFrame(tk.Frame):
         confirm = self.conf_entry.get().strip()
 
         if not username or not password or not confirm:
-            messagebox.showerror("Error", "Rellena todos los campos")
+            dialogs.InfoDialog(self, "Error", "Rellena todos los campos", "error")
             return
 
         if password != confirm:
-            messagebox.showerror("Error", "Las contraseñas no coinciden")
+            dialogs.InfoDialog(self, "Error", "Las contraseñas no coinciden", "error")
             return
 
         try:
@@ -62,8 +63,8 @@ class RegisterFrame(tk.Frame):
                 "role": "user"
             })
 
-            messagebox.showinfo("Éxito","Usuario registrado correctamente")
+            dialogs.InfoDialog(self, "Éxito","Usuario registrado correctamente", "info")
             self.switch_frame("login")
         except (ValueError, DatabaseError) as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return

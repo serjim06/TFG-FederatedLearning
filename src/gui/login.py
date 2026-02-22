@@ -1,9 +1,10 @@
 import tkinter as tk
 from sqlite3 import DatabaseError
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from src.db import dbcon
 from src.utils.user import User
 import src.utils.utils as utils
+from src.gui import dialogs
 import src.utils.icons.image_finder as image_finder
 from PIL import ImageTk, Image
 
@@ -81,19 +82,19 @@ class LoginPanel(tk.Frame):
         passwd = self.password_entry.get()
 
         if not user or not passwd:
-            messagebox.showerror("Error", "Rellena los campos")
+            dialogs.InfoDialog(self, "Error", "Rellena los campos", "error")
             return
 
         try:
             obj_user = dbcon.command("select","users", {"username": user, "password": passwd})
 
             if not obj_user:
-                messagebox.showerror("Error", "Usuario o contraseña incorrectos")
+                dialogs.InfoDialog(self, "Error", "Usuario o contraseña incorrectos", "error")
                 return
 
             new_user = User(**obj_user[0])
             self.switch_frame("dashboard", new_user)
 
         except (ValueError, DatabaseError) as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return

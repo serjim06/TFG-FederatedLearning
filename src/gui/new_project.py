@@ -5,7 +5,6 @@ import shutil
 from sqlite3 import DatabaseError
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox
 from tkinter import filedialog
 import uuid
 
@@ -18,6 +17,7 @@ from src.projects.projects import Project
 from src.projects.projects import cargar_modulo, verificar_modulo
 from src.gui.confirm_results import ConfirmResultsFrame
 from src.utils import utils
+from src.gui import dialogs
 
 class ScrollableNodesFrame(ttk.Frame):
     def __init__(self, parent, height=150):
@@ -315,7 +315,8 @@ class NewProject(ttk.Frame):
         try:
             nodes = dbcon.command("select", "nodes", {"id": "*", "valid": 0})
         except (ValueError, DatabaseError) as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
+            return
             
         
         if self.project != None:
@@ -347,7 +348,7 @@ class NewProject(ttk.Frame):
                 clase = verificar_modulo(modulo)
                 
                 if not clase:
-                    messagebox.showerror("Error", "El módulo seleccionado no contiene una clase válida que herede de BaseModel.")
+                    dialogs.InfoDialog(self, "Error", "El módulo seleccionado no contiene una clase válida que herede de BaseModel.", "error")
                     return
                 
                 self.model_class_name = clase.__name__
@@ -359,7 +360,7 @@ class NewProject(ttk.Frame):
                 self.ruta = self._copy_model(ruta_inicial)
                 self.ruta = Path(self.ruta).as_posix()
         except Exception as e:
-            messagebox.showerror("Error", f"Ocurrió un error al cargar el modelo: {str(e)}")
+            dialogs.InfoDialog(self, "Error", f"Ocurrió un error al cargar el modelo: {str(e)}", "error")
             return
                         
     def _copy_model(self, ruta_inicial):
@@ -504,7 +505,7 @@ class NewProjectDialog(tk.Toplevel):
         try:
             data = self.form.get_data()
         except ValueError as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return
         
         params_str = json.dumps(data["parameters"])
@@ -535,11 +536,11 @@ class NewProjectDialog(tk.Toplevel):
                               json.loads(project[0]["parameters"]), project[0]["aggregation_strategy"],
                               initial_nodes=nodes_bytes, metrics=project[0]["metrics"])
         except (ValueError, DatabaseError) as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return
         
         self.parent._initialize_tree()
-        messagebox.showinfo("Éxito", f"Proyecto '{data['name']}' creado correctamente.", parent=self)
+        dialogs.InfoDialog(self, "Éxito", f"Proyecto '{data['name']}' creado correctamente.", "info")
         
         self.destroy()
 
@@ -625,7 +626,7 @@ class SeeProjectDialog(tk.Toplevel):
         try:
             data = self.form.get_data()
         except ValueError as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return
             
         params_str = json.dumps(data["parameters"])
@@ -659,10 +660,10 @@ class SeeProjectDialog(tk.Toplevel):
                 
                 
         except (ValueError, DatabaseError) as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return
             
         self.parent._initialize_tree()
-        messagebox.showinfo("Éxito", f"Proyecto '{data['name']}' modificado correctamente.")
+        dialogs.InfoDialog(self, "Éxito", f"Proyecto '{data['name']}' modificado correctamente.", "info")
             
         self.destroy()

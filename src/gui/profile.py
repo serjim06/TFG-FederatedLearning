@@ -1,8 +1,9 @@
 import tkinter as tk
 import uuid
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from src.db import dbcon
 import src.utils.utils as utils
+from src.gui import dialogs
 
 
 class ProfileFrame(tk.Frame):
@@ -82,9 +83,6 @@ class ProfileFrame(tk.Frame):
             self.show_pw = True
 
     def _cerrar_sesion(self):
-        confirmar = messagebox.askyesno(
-            "Cerrar sesión",
-            "¿Seguro que quieres cerrar sesión?"
-        )
+        confirmar = dialogs.OptionDialog.ask(self, "Cerrar sesión", "¿Seguro que quieres cerrar sesión?")
         if confirmar:
             self.switch_frame("login")

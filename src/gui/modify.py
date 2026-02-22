@@ -1,10 +1,10 @@
 import tkinter as tk
 from sqlite3 import DatabaseError
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from src.db import dbcon
 from src.utils.user import User
 import src.utils.utils as utils
-
+from src.gui import dialogs
 
 class ModifyPanel(tk.Frame):
     def __init__(self, parent, switch_frame, usuario):
@@ -76,7 +76,7 @@ class ModifyPanel(tk.Frame):
         new_user = User(self.usuario['id'], self.usuario['username'], self.usuario['password'], self.usuario['role'])
 
         if not user or not passwd:
-            messagebox.showerror("Error","Los campos no pueden estar vacíos")
+            dialogs.InfoDialog(self, "Error", "Los campos no pueden estar vacíos", "error")
             return
 
         if user != self.usuario['username']:
@@ -89,10 +89,10 @@ class ModifyPanel(tk.Frame):
 
         try:
             dbcon.command("update","users", usuario)
-            messagebox.showinfo("Success", "Los datos se han modificado correctamente")
+            dialogs.InfoDialog(self, "Success", "Los datos se han modificado correctamente", "info")
 
             self.switch_frame("modified_profile", new_user)
 
         except (ValueError, DatabaseError) as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return

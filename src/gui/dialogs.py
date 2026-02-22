@@ -23,11 +23,17 @@ class BaseDialog(tk.Toplevel):
         self.grab_set()
         self.focus_set()
         self.protocol("WM_DELETE_WINDOW", self.destroy)
-        # Center the dialog over the parent window
+
+    def center_dialog(self):
         self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() // 2) - (self.winfo_width() // 2)
-        y = parent.winfo_rooty() + (parent.winfo_height() // 2) - (self.winfo_height() // 2)
-        self.geometry(f"+{x}+{y}")
+        w = max(self.winfo_width(), 350) 
+        h = self.winfo_height()
+        
+        parent = self.master
+        x = parent.winfo_rootx() + (parent.winfo_width() // 2) - (w // 2)
+        y = parent.winfo_rooty() + (parent.winfo_height() // 2) - (h // 2)
+        
+        self.geometry(f"{w}x{h}+{x}+{y}")
 
     def _add_ok_button(self, command=None):
         """Add a single OK button using the secondary button style.
@@ -65,6 +71,7 @@ class InfoDialog(BaseDialog):
         tk.Label(frame, image=self.icon, bg=utils.BG_COLOR).grid(row=0, column=0, padx=(0, 10))
         tk.Label(frame, text=message, font=(utils.FONT, 12, "bold"), bg=utils.BG_COLOR, wraplength=300, justify="left").grid(row=0, column=1)
         self._add_ok_button()
+        self.center_dialog()
 
 
 class OptionDialog(BaseDialog):
@@ -94,9 +101,10 @@ class OptionDialog(BaseDialog):
 
         frame = tk.Frame(dialog, bg=utils.BG_COLOR)
         frame.pack(padx=20, pady=20)
-        tk.Label(frame, text=message, font=("Arial", 11), bg=utils.BG_COLOR, wraplength=300, justify="left").grid(row=0, column=0, columnspan=2, pady=(0, 10))
+        tk.Label(frame, text=message, font=(utils.FONT, 12, "bold"  ), bg=utils.BG_COLOR, wraplength=300, justify="left").grid(row=0, column=0, columnspan=2, pady=(0, 10))
         ttk.Button(frame, text="Yes", style=utils.SEC_TBUTTON_STYLE, command=set_yes).grid(row=1, column=0, padx=5)
         ttk.Button(frame, text="No", style=utils.SEC_TBUTTON_STYLE, command=set_no).grid(row=1, column=1, padx=5)
+        dialog.center_dialog()
         dialog.wait_window()
         return answer.get()
 
@@ -105,4 +113,4 @@ class OptionDialog(BaseDialog):
         # constructor for completeness and possible future extensions.
         super().__init__(parent, title)
         # No default widgets – ``ask`` creates its own layout.
-        self.withdraw()  # hide the base window; ``ask`` will manage its own Toplevel.
+        #self.withdraw()  # hide the base window; ``ask`` will manage its own Toplevel.

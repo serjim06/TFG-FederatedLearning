@@ -2,11 +2,11 @@ import json
 from sqlite3 import DatabaseError
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox
 import uuid
 
 import src.db.dbcon as dbcon
 from src.utils import utils
+from src.gui import dialogs
 
 class UserInfoDialog(tk.Toplevel):
     def __init__(self, parent, user_data):
@@ -80,15 +80,15 @@ class UserInfoDialog(tk.Toplevel):
         
                 
     def delete_user(self):
-        if messagebox.askyesno("Confirmar Eliminación", "¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer. Se eliminarán todos los proyectos asociados a este usuario."):
+        if dialogs.OptionDialog.ask(self, "Confirmar Eliminación", "¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer. Se eliminarán todos los proyectos asociados a este usuario."):
             try:
                 dbcon.command("delete", "projects", {"uid": self.user_data["id"]})
                 dbcon.command("delete", "users", {"id": self.user_data["id"]})
             except (ValueError, DatabaseError) as e:
-                messagebox.showerror("Error", str(e))
+                dialogs.InfoDialog(self, "Error", str(e), "error")
                 return
             
-            messagebox.showinfo("Usuario Eliminado", "El usuario ha sido eliminado correctamente.")
+            dialogs.InfoDialog(self, "Usuario Eliminado", "El usuario ha sido eliminado correctamente.", "info")
             self.destroy()
             
             

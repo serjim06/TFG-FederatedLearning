@@ -2,7 +2,6 @@ import json
 from sqlite3 import DatabaseError
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox
 import uuid
 import src.db.dbcon as dbcon
 import src.utils.icons.image_finder as image_finder
@@ -10,6 +9,7 @@ from PIL import ImageTk, Image
 from TkToolTip import ToolTip
 from src.gui.new_project import NewProjectDialog, SeeProjectDialog
 from src.gui.base_list import SEC_BTN_STYLE, BaseListFrame
+from src.gui import dialogs
 from collections import Counter
 from math import sqrt
 
@@ -155,7 +155,13 @@ class ProjectListFrame(BaseListFrame):
         
     
     def _reposition_suggestions(self, event=None):
-        if not self.suggestion_popup.winfo_viewable():
+        try:
+            if not self.winfo_exists():
+                return
+        except (tk.TclError, AttributeError):
+            return
+
+        if event and event.widget != self.winfo_toplevel():
             return
 
         x = self.search_entry.winfo_rootx()
@@ -214,15 +220,15 @@ class ProjectListFrame(BaseListFrame):
                 if project_data:
                     SeeProjectDialog(self, project_id)
             except (ValueError, DatabaseError) as e:
-                messagebox.showerror("Error", str(e))
+                dialogs.InfoDialog(self, "Error", str(e), "error")
         else:
-            messagebox.showinfo("Información", "No hay ningún proyecto seleccionado para configurar.")
+            dialogs.InfoDialog(self, "Información", "No hay ningún proyecto seleccionado para configurar.", "info")
     
     def _add_item(self):
         try: 
             NewProjectDialog(self, self.usuario["id"])
         except (ValueError, DatabaseError) as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
             return
     
     def _delete_item(self):
@@ -233,7 +239,7 @@ class ProjectListFrame(BaseListFrame):
             for item in seleccionado:
                 item_id = item
                 
-                if not messagebox.askyesno("Confirmar eliminación", "¿Estás seguro de que deseas eliminar el proyecto seleccionado? Esta acción no se puede deshacer."):
+                if not dialogs.OptionDialog.ask(self, "Confirmar eliminación", "¿Estás seguro de que deseas eliminar el proyecto seleccionado? Esta acción no se puede deshacer."):
                     canceled.append(item)
                     continue
                 
@@ -245,13 +251,13 @@ class ProjectListFrame(BaseListFrame):
                     
                     dbcon.command("delete", "projects", {"id": project_id})
                 except (ValueError, DatabaseError) as e:
-                    messagebox.showerror("Error", str(e))
+                    dialogs.InfoDialog(self, "Error", str(e), "error")
                     #return
                 
             self._update_tree_after_delete(seleccionado, canceled)
-            messagebox.showinfo("Información", "Proyecto(s) eliminado(s) correctamente.")
+            dialogs.InfoDialog(self, "Información", "Proyecto(s) eliminado(s) correctamente.", "info")
         else:
-            messagebox.showinfo("Información", "No hay ningún nodo seleccionado para eliminar.")
+            dialogs.InfoDialog(self, "Información", "No hay ningún nodo seleccionado para eliminar.", "info")
 
     def _invalidate_nodes(self, project_id):
         """
@@ -272,7 +278,7 @@ class ProjectListFrame(BaseListFrame):
                 try:
                     dbcon.command("update", "nodes", {"id": uuid.UUID(node_id).bytes, "valid": 0})
                 except (ValueError, DatabaseError) as e:
-                    messagebox.showerror("Error", str(e))
+                    dialogs.InfoDialog(self, "Error", str(e), "error")
                     
     
     def _initialize_tree(self):
@@ -294,7 +300,7 @@ class ProjectListFrame(BaseListFrame):
                 
                 
         except (ValueError, DatabaseError) as e:
-            messagebox.showerror("Error", str(e))
+            dialogs.InfoDialog(self, "Error", str(e), "error")
 
         self.project_names = [project_data["name"] for project_data in projects]
 
