@@ -3,6 +3,8 @@ import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
 from tkinter import messagebox
+import re
+import shutil
 
 from src.utils import utils
 
@@ -14,7 +16,7 @@ class CorrectResultDialog(tk.Toplevel):
         self.geometry("400x300")
         self.configure(bg=utils.BG_COLOR)
         self.resizable(False, False)
-        
+
         self.parent = parent
         self.row = row
         self.out_features = dict.fromkeys(out_features, "")
@@ -82,12 +84,13 @@ class CorrectResultDialog(tk.Toplevel):
         
 
 class ConfirmResultsFrame (tk.Frame):
-    def __init__(self, parent, pending, labels):
+    def __init__(self, parent, pending, labels, cur_round):
         super().__init__(parent)
         
         self.parent = parent
         self.pending = pending
         self.labels = labels
+        self.cur_round = cur_round
         
         self.configure(bg=utils.BG_COLOR)
         utils.get_style()
@@ -146,18 +149,8 @@ class ConfirmResultsFrame (tk.Frame):
 
 
     def _confirm_result(self, row):
-        path = Path(Path.cwd(), "database", "datasets", self.pending[row-1]["node"], "dataset.csv")
-        
-        if not path.exists():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w") as f:
-                for labels in json.loads(self.labels["in_features"]):
-                    f.write(labels)
-                    f.write(",")
-                for labels in json.loads(self.labels["out_features"]):
-                    f.write(labels)
-                    f.write(",")
-                f.write("\n")
+        ### Recupera el último dataset. Si el correspondiente a la ronda actual no existe, lo crea.
+        path = self._get_last_dataset(row)
                 
         with open(path, "a") as f:
             for _, feature in self.pending[row-1]["data"].items():
@@ -181,19 +174,46 @@ class ConfirmResultsFrame (tk.Frame):
         correct_dialog.grab_set()
         correct_dialog.focus_set()
         
-    def correct_result(self, row, out_features):
-        path = Path(Path.cwd(), "database", "datasets", self.pending[row-1]["node"], "dataset.csv")
+    def _get_last_dataset(self, row):
+        path = Path(__file__).parent.parent.parent / "database" / "datasets" / self.pending[row-1]["node"]
+        pattern = re.compile(r"dataset_(\d+)\.csv")
         
-        if not path.exists():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w") as f:
-                for labels in json.loads(self.labels["in_features"]):
-                    f.write(labels)
-                    f.write(",")
-                for labels in json.loads(self.labels["out_features"]):
-                    f.write(labels)
-                    f.write(",")
-                f.write("\n")
+        found_files = []
+        
+        for f in path.glob('dataset_*.csv'):
+            coincidence = pattern.search(f.name)
+            if coincidence:
+                round_number = int(coincidence.group(1))
+                found_files.append((round_number, f))
+                
+        if found_files:
+            last_dataset, file_path = max(found_files, key=lambda x: x[0])
+            if last_dataset != self.cur_round:
+                dest = Path(__file__).parent.parent.parent / "database" / "datasets" / self.pending[row-1]["node"] / f"dataset_{self.cur_round}.csv"
+                shutil.copy2(file_path, dest)
+                file_path = dest
+        else:
+            file_path = self._create_new_dataset(row)        
+        
+        return file_path
+        
+    def _create_new_dataset(self, row):
+        path = Path(__file__).parent.parent.parent / "database" / "datasets" / self.pending[row-1]["node"] / f"dataset_{self.cur_round}.csv"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(path, "w") as f:
+            for labels in json.loads(self.labels["in_features"]):
+                f.write(labels)
+                f.write(",")
+            for labels in json.loads(self.labels["out_features"]):
+                f.write(labels)
+                f.write(",")
+            f.write("\n")
+            
+        return path
+        
+    def correct_result(self, row, out_features):
+        path = self._get_last_dataset(row)
         
         with open(path, "a") as f:
             for key, feature in self.pending[row-1]["data"].items():
