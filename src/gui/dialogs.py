@@ -50,13 +50,14 @@ class InfoDialog(BaseDialog):
 
     Parameters
     ----------
-    parent: tk widget – the parent window.
-    title: str – window title.
-    message: str – text to display.
-    kind: str – one of "info", "warning", "error". Determines the icon.
-    """
+    parent: tk widget - the parent window.
 
-    
+    title: str - window title.
+
+    message: str - text to display.
+
+    kind: str - one of "info", "warning", "error". Determines the icon.
+    """
 
     def __init__(self, parent, title: str, message: str, kind: str = "info"):
         self.icons = {
@@ -77,6 +78,14 @@ class InfoDialog(BaseDialog):
 class OptionDialog(BaseDialog):
     """Dialog that asks a yes/no question and returns a boolean.
 
+    Parameters
+    ----------
+    parent: tk widget - the parent window.
+
+    title: str - window title.
+
+    message: str - text to display.
+
     Usage
     -----
     result = OptionDialog.ask(parent, "Confirm", "Do you want to continue?")
@@ -86,7 +95,7 @@ class OptionDialog(BaseDialog):
     def ask(parent, title: str, message: str) -> bool:
         """Show a modal yes/no dialog.
 
-        Returns ``True`` if the user clicks *Yes*, ``False`` otherwise.
+        Returns `True` if the user clicks *Yes*, `False` otherwise.
         """
         dialog = OptionDialog(parent, title, message)
         answer = tk.BooleanVar(value=False)
@@ -109,8 +118,4 @@ class OptionDialog(BaseDialog):
         return answer.get()
 
     def __init__(self, parent, title: str, message: str):
-        # The actual UI is built in the static ``ask`` method, but we keep the
-        # constructor for completeness and possible future extensions.
         super().__init__(parent, title)
-        # No default widgets – ``ask`` creates its own layout.
-        #self.withdraw()  # hide the base window; ``ask`` will manage its own Toplevel.
