@@ -1,0 +1,53 @@
+[
+  {
+    "train_id": "exp_001_federated_learning",
+    "config": {
+      "strategy": "FedAvg",
+      "total_clients": [1, 2, 3],
+      "epochs": 3,
+      "batch_size": 32,
+      "learning_rate": 0.001,
+      "optimizer": "Adam",
+      "classes": ["Cat", "Dog", "Bird"],
+      "loss": "categorical_crossentropy"
+    },
+    "results_per_round": [
+      {
+        "round": 1,
+        "global_loss": 2.45,
+        "global_accuracy": 0.35,
+        "client_stats": [
+          {
+            "client_id": 1,
+            "confusion_matrix": [[15, 5, 2], [8, 12, 4], [3, 7, 10]]
+          },
+          {
+            "client_id": 2,
+            "confusion_matrix": [[160, 1, 4], [5, 700, 2], [6, 4, 12]]
+          }
+        ]
+      },
+      {
+        "round": 2,
+        "global_loss": 1.20,
+        "global_accuracy": 0.72,
+        "client_stats": [
+          {
+            "client_id": 1,
+            "confusion_matrix": [[22, 1, 0], [2, 20, 1], [1, 2, 21]]
+          },
+          {
+            "client_id": 2,
+            "confusion_matrix": [[20, 2, 1], [1, 22, 0], [2, 1, 21]]
+          }
+        ]
+      }
+    ],
+    "final_metrics": {
+      "best_accuracy": 0.92,
+      "total_time_seconds": 1200,
+      "y_true_final": [0, 1, 2, 0, 1, 2],
+      "y_pred_final": [0, 1, 2, 0, 2, 2]
+    }
+  }
+]
