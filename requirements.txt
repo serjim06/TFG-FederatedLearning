@@ -1,3 +1,5 @@
 pillow
 torch
 reportlab
+scikit-learn
+matplotlib

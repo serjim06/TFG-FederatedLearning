@@ -7,7 +7,9 @@ authors = [{ name = "Sergio" }]
 dependencies = [
     "pillow",
     "torch",
-    "reportlab"
+    "reportlab",
+    "scikit-learn",
+    "matplotlib"
 ]
 
 [tool.setuptools.packages.find]
