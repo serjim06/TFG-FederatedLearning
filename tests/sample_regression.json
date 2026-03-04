@@ -1,0 +1,52 @@
+[
+  {
+    "train_id": "exp_001",
+    "config": 
+    {
+      "strategy": "FedAvg", 
+      "total_clients": [1, 2, 3], 
+      "epochs": 3, 
+      "batch_size": 32, 
+      "learning_rate": 0.001, 
+      "optimizer": "Adam",
+      "loss": "mse"
+    },
+  "results_per_round": [
+    {
+      "round": 1,
+      "global_loss": 2.45,
+      "client_stats": [
+        {
+          "client_id": 1,
+          "y_pred": [30, 5, 10, 15, 20, 25, 30],
+          "y_true": [30, 0, 10, 15, 20, 25.5, 30]
+        },
+        {
+          "client_id": 2,
+          "y_pred": [10, 20, 30, 40, 50, 60, 70],
+          "y_true": [10, 0, 10, 15, 20, 25.5, 30]
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "global_loss": 1.80,
+      "client_stats": [
+        {
+          "client_id": 1,
+          "y_pred": [10, 20, 30, 40, 50, 60, 70],
+          "y_true": [10, 0, 10, 15, 20, 25.5, 30]
+        },
+        {
+          "client_id": 2,
+          "y_pred": [10, 20, 12, 17, 22, 27, 32],
+          "y_true": [10, 0, 10, 15, 20, 25.5, 30]
+        }
+      ]
+    }
+  ],
+  "final_metrics": {
+    "total_time_seconds": 1200
+    }
+ }
+]
