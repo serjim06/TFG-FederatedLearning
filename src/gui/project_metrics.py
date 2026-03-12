@@ -18,18 +18,18 @@ Clase para mostrar las métricas del proyecto:
 
 - Métricas por ronda (loss, r^2/f1) X
 
-- Histograma de cambio de distribución de clases en cada nodo (porque puede cambiar el dataset)
+- Histograma de cambio de distribución de clases en cada nodo (porque puede cambiar el dataset) --
 
 - Gráfico en el que se muestra en el fondo un área sombreada que muestra cómo crece el número de muestras, y al frente la métrica de evaluación
   (por ejemplo, MAE, R^2...) para poder ver si afecta el número de muestras a la métrica.
 
 - Regresion: (Scatter plot,resiguals histogram)/Classification: distribution plot
 
-- Gráfico de barras apiladas que muestre muestras originales, añadidas en esa ronda y modificadas o corregidas
+- Gráfico de barras apiladas que muestre muestras originales, añadidas en esa ronda y modificadas o corregidas X
 
 - Participación de nodos (diagrama circular)
 
-- Tiempo por ronda
+- Tiempo por ronda X
 
 """
 
@@ -163,6 +163,13 @@ def _get_regression_metrics(training_data):
 
     return metrics
 
+def get_time_per_round(training_data):
+    time_per_round = []
+    for training in training_data:
+        for r in training["results_per_round"]:
+            time_per_round.append(r["time"])
+    return time_per_round
+
 class ProjectMetricsDialog(tk.Toplevel):
 
     def __init__(self, parent, training_data, project_data, title="Métricas del Proyecto"):
@@ -238,11 +245,38 @@ class ProjectMetricsDialog(tk.Toplevel):
 
         composed_changes = datasets_changes["composed_changes"]
 
-        x_values = 
+        borders = np.array([rnd for rnd in sorted(composed_changes.keys())])
+        widths = np.diff(borders)
+
+        centers = borders[:-1] + widths / 2
+
+        freq = np.array([composed_changes[rnd]["length"] for rnd in borders])
+        added = np.array([len(composed_changes[rnd]["added"]) for rnd in borders])
+
+        unmodified_part = np.minimum(freq, added)
+        modified_part = np.maximum(0, freq - added)
         
         fig, ax = plt.subplots(figsize=(7,4), dpi=100)
 
-        n, bins, patches = ax.hist()
+        ax.bar(centers, unmodified_part, width=widths, color=color_normal, edgecolor='black', alpha=0.8, label="Datos sin modificar")
+        ax.bar(centers, modified_part, width=widths, color=color_added, edgecolor='black', alpha=0.8, label="Datos añadidos")
+
+        ax.step(borders, np.append(added, added[-1]), where="post", color="#2C3E50", linestyle="--", linewidth=2)
+
+        ax.set_xticks(borders)
+        ax.set_xlabels("Rondas")
+        ax.set_ylabel("Datos en datasets")
+        ax.set_title("Cambios en los datasets a lo largo de las rondas")
+        ax.legend()
+
+        ax.grid(axis='x', linestyle=':', alpha=0.3)
+        plt.tight_layout()
+        
+        canvas = FigureCanvasTkAgg(fig, master=frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        plt.close(fig)
         
 
     def _metrics_per_round_graphic(self, metrics, frame):
@@ -297,4 +331,19 @@ class ProjectMetricsDialog(tk.Toplevel):
     def _build_regression_metrics(self):
         pass
 
+    def _time_per_round_graphic(self, frame):
+        time_per_round = self.project_data["time_per_round"]
+
+        fig, ax = plt.subplots(figsize=(6,4), dpi=100)
+        ax.bar(range(1, len(time_per_round)+1), time_per_round)
+        ax.set_xlabel("Ronda Federada")
+        ax.set_ylabel("Tiempo por ronda (segundos)")
+        ax.set_title("Tiempo por ronda")
+        plt.tight_layout()
+        
+        canvas = FigureCanvasTkAgg(fig, master=frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+
+        plt.close(fig)
             

@@ -14,6 +14,7 @@
     "results_per_round": [
       {
         "round": 1,
+        "time": 600,
         "global_loss": 2.45,
         "global_accuracy": 0.35,
         "client_stats": [
@@ -29,6 +30,7 @@
       },
       {
         "round": 2,
+        "time": 600,
         "global_loss": 1.20,
         "global_accuracy": 0.72,
         "client_stats": [
