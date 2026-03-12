@@ -1,0 +1,300 @@
+import tkinter as tk
+from tkinter import ttk
+from sklearn.metrics import mean_absolute_error, r2_score, f1_score
+import numpy as np
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+from src.gui.dialogs import InfoDialog
+
+"""
+
+Clase para mostrar las métricas del proyecto:
+
+- Scroll X
+
+- Parámetros de entrenamiento X
+
+- Métricas por ronda (loss, r^2/f1) X
+
+- Histograma de cambio de distribución de clases en cada nodo (porque puede cambiar el dataset)
+
+- Gráfico en el que se muestra en el fondo un área sombreada que muestra cómo crece el número de muestras, y al frente la métrica de evaluación
+  (por ejemplo, MAE, R^2...) para poder ver si afecta el número de muestras a la métrica.
+
+- Regresion: (Scatter plot,resiguals histogram)/Classification: distribution plot
+
+- Gráfico de barras apiladas que muestre muestras originales, añadidas en esa ronda y modificadas o corregidas
+
+- Participación de nodos (diagrama circular)
+
+- Tiempo por ronda
+
+"""
+
+def get_metrics_per_round(training_data, project_type):
+    if project_type == "classification":
+        return _get_classification_metrics(training_data)
+    else:
+        return _get_regression_metrics(training_data)
+
+def _get_classification_metrics(training_data):
+    metrics = []
+    for training in training_data:
+        for r in training["results_per_round"]:
+            loss = r["global_loss"]
+            acc = r["global_accuracy"]
+            y_true = []
+            y_pred = []
+            for client in r["client_stats"]:
+                matrix = np.array(client["confusion_matrix"])
+
+                for i in range(matrix.shape[0]):
+                    for j in range(matrix.shape[1]):
+                        amount = matrix[i, j]
+                        y_true.extend([i] * amount)
+                        y_pred.extend([j] * amount)
+            
+            f1 = f1_score(y_true, y_pred, average='weighted')
+
+            metrics.append({
+                "loss":loss,
+                "accuracy": acc,
+                "f1": f1
+            })
+
+    return metrics
+
+def get_datasets_changes(nodes):
+    """
+    Collects datasets changes for each node
+
+    Args:
+        nodes (list[str]): List of nodes
+
+    Returns:
+        dict: Dictionary of datasets changes
+    """
+
+    datasets_changes = {}
+    composed_changes = {}
+
+    for node in nodes:
+        path = Path(__file__).parent.parent.parent / "database" / "datasets" / node
+        pattern = re.compile(r"dataset_(\d+)\.csv")
+        
+        found_files = []
+        
+        for f in path.glob('dataset_*.csv'):
+            coincidence = pattern.search(f.name)
+            if coincidence:
+                round_number = int(coincidence.group(1))
+                found_files.append((round_number, f))
+
+        if len(found_files) > 0:
+            datasets_changes[node] = _get_files_changes(found_files)
+            for change in datasets_changes[node]:
+                if change["round"] not in composed_changes:
+                    composed_changes[change["round"]] = {"added": [], "length": 0}
+                
+                composed_changes[change["round"]]["added"].extend(change["added"])
+                composed_changes[change["round"]]["length"] += change["length"]
+    
+    return {"datasets_changes": datasets_changes, "composed_changes": composed_changes}
+    
+
+def _get_files_changes(files):
+    """
+    Calculates the changes between files
+
+    Args:
+        files (list[tuple]): List of files
+
+    Returns:
+        dict: Dictionary of files changes
+    """
+
+    changes = {}
+
+    sorted_files = sorted(files, key=lambda x: x[0])
+
+    file_0 = sorted_files[0][1]
+    
+    with open(file_0, "r") as f:
+        lines_prev = f.readlines()
+        
+        changes[0] = {"round": sorted_files[0][0], "added": [], "length": len(lines_prev)-1}
+
+        for line in lines_prev[1:]:
+            changes[0]["added"].append(line.strip().split())
+    
+    for i in range(1, len(sorted_files)):
+        file_i = sorted_files[i][1]
+        with open(file_i, "r") as f:
+            lines_curr = f.readlines()
+            
+            changes[i] = {"round": sorted_files[i][0], "added": [], "length": len(lines_curr)-1}
+
+            for line in lines_curr[1:]:
+                if line not in lines_prev:
+                    changes[i]["added"].append(line.strip().split())
+    
+            lines_prev = lines_curr
+
+    return changes
+            
+
+def _get_regression_metrics(training_data):
+    metrics = []
+    for training in training_data:
+        for r in training["results_per_round"]:
+            loss = r["global_loss"]
+            y_true = []
+            y_pred = []
+            for client in r["client_stats"]:
+                y_true.extend(client["y_true"])
+                y_pred.extend(client["y_pred"])
+
+            metrics.append({
+                "loss":loss,
+                "r2": r2_score(y_true, y_pred)
+            })
+
+    return metrics
+
+class ProjectMetricsDialog(tk.Toplevel):
+
+    def __init__(self, parent, training_data, project_data, title="Métricas del Proyecto"):
+        super().__init__(parent)
+        self.title(title)
+        self.geometry("800x600")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        if len(training_data) > 0:
+            self.training_data = training_data
+        else:
+            InfoDialog(self, "Error", "No hay datos de entrenamiento", kind="error")
+            self.destroy()
+            return
+
+        self.project_data = project_data
+        self.create_widgets()
+
+
+    def create_widgets(self):
+
+        container = tk.Frame(self)
+        container.pack(fill="both", expand=True)
+
+        self.canvas = tk.Canvas(container, bg=utils.BG_COLOR, highlightthickness=0)
+        scroll_y = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview, style="White.Vertical.TScrollbar")
+        scroll_y.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True, padx=15, pady=15)
+        self.canvas.configure(yscrollcommand=scroll_y.set)
+
+        self.info_frame = tk.Frame(self.canvas, bg=utils.BG_COLOR)
+        self.info_frame.bind("<Configure>", self._on_configure)
+        self.canvas.create_window((0,0), window=self.info_frame, anchor="nw")
+    
+        self.params_frame = tk.Frame(self.info_frame, bg=utils.BG_COLOR)
+        self.params_frame.pack(fill="both", expand=True)
+
+        ttk.Separator(self.info_frame, orient="horizontal").pack(fill="x", pady=10)
+
+        self.metrics_frame = tk.Frame(self.info_frame, bg=utils.BG_COLOR)
+        self.metrics_frame.pack(fill="both", expand=True)
+        
+        self._build_params()
+        self._build_metrics()
+        
+
+    def _build_params(self):
+        tk.Label(self.params_frame, text="Parámetros de entrenamiento", background=utils.BG_COLOR).pack(pady=10)
+
+        params = self.training_data[0]["config"]
+
+        for key, value in params.items():
+            tk.Label(self.params_frame, text=f"{key}: {value}", background=utils.BG_COLOR).pack()
+        
+    def _build_metrics(self):
+        if self.project_data["type"] == "classification":
+            self._build_classification_metrics()
+        else:
+            self._build_regression_metrics()
+    
+
+    def _build_classification_metrics(self):
+        pass
+
+    def _build_changes_histogram(self, datasets_changes, frame):
+        color_added = "#2ECC71"
+        color_normal = "#3498DB"
+
+        for widget in frame.winfo_children():
+            widget.destroy()
+
+        composed_changes = datasets_changes["composed_changes"]
+
+        x_values = 
+        
+        fig, ax = plt.subplots(figsize=(7,4), dpi=100)
+
+        n, bins, patches = ax.hist()
+        
+
+    def _metrics_per_round_graphic(self, metrics, frame):
+        if self.project_data["type"] == "classification":
+            mtr = "f1"
+        else:
+            mtr = "r2"
+
+        rondas = [m.get('round', i+1) for i, m in enumerate(metrics)]
+        lista_loss = [m.get('loss', 0) for m in metrics]
+
+        is_classification = self.project_data.get("type") == "classification"
+        mtr_key = "f1" if is_classification else "r2"
+        mtr_label = "F1-Score" if is_classification else "$R^2$ Score"
+
+        lista_metricas = [m.get(mtr_key, 0) for m in metrics]
+
+        fig, ax1 = plt.subplots(figsize=(6,4), dpi=100)
+        
+        color_loss = '#E74C3C'
+        ax1.set_xlabel('Ronda Federada')
+        ax1.set_ylabel('Loss (Pérdida)', color=color_loss, fontsize=12)
+        ax1.plot(rondas, lista_loss, color=color_loss, marker='o', label='Loss')
+        ax1.tick_params(axis='y', labelcolor=color_loss)
+        ax1.grid(True, linestyle=':', alpha=0.5)
+
+        ax2 = ax1.twinx()
+        color_metric = '#3498DB'
+        ax2.set_ylabel(mtr_label, color=color_metric, fontsize=12)
+        ax2.plot(rondas, lista_metricas, color=color_metric, marker='x', label=mtr_label)
+        ax2.tick_params(axis='y', labelcolor=color_metric)
+
+        ax2.set_ylim(0, 1.05)
+
+        plt.title(f'Evolución del entrenamiento ({self.project_data["name"]})', pad=15)
+
+        lines, labels = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax2.legend(lines + lines2, labels + labels2, loc='upper center', ncol=2)
+
+        fig.tight_layout()
+
+        for widget in frame.winfo_children():
+            widget.destroy()
+
+        canvas = FigureCanvasTkAgg(fig, master=frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+
+        plt.close(fig)
+
+    def _build_regression_metrics(self):
+        pass
+
+            
