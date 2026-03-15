@@ -5,6 +5,8 @@ import numpy as np
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 from src.gui.dialogs import InfoDialog
 
@@ -21,13 +23,13 @@ Clase para mostrar las métricas del proyecto:
 - Histograma de cambio de distribución de clases en cada nodo (porque puede cambiar el dataset) --
 
 - Gráfico en el que se muestra en el fondo un área sombreada que muestra cómo crece el número de muestras, y al frente la métrica de evaluación
-  (por ejemplo, MAE, R^2...) para poder ver si afecta el número de muestras a la métrica.
+  (por ejemplo, MAE, R^2...) para poder ver si afecta el número de muestras a la métrica. X
 
-- Regresion: (Scatter plot,resiguals histogram)/Classification: distribution plot
+- Regresion: (Scatter plot,resiguals histogram)/Classification: distribution plot X
 
 - Gráfico de barras apiladas que muestre muestras originales, añadidas en esa ronda y modificadas o corregidas X
 
-- Participación de nodos (diagrama circular)
+- Participación de nodos (diagrama circular) X
 
 - Tiempo por ronda X
 
@@ -42,6 +44,7 @@ def get_metrics_per_round(training_data, project_type):
 def _get_classification_metrics(training_data):
     metrics = []
     for training in training_data:
+        total_clients = len(training["config"]["total_clients"])
         for r in training["results_per_round"]:
             loss = r["global_loss"]
             acc = r["global_accuracy"]
@@ -61,7 +64,8 @@ def _get_classification_metrics(training_data):
             metrics.append({
                 "loss":loss,
                 "accuracy": acc,
-                "f1": f1
+                "f1": f1,
+                "participation": len(r["client_stats"])/total_clients
             })
 
     return metrics
@@ -147,6 +151,8 @@ def _get_files_changes(files):
 
 def _get_regression_metrics(training_data):
     metrics = []
+    y_true_total = []
+    y_pred_total = []
     for training in training_data:
         for r in training["results_per_round"]:
             loss = r["global_loss"]
@@ -156,12 +162,15 @@ def _get_regression_metrics(training_data):
                 y_true.extend(client["y_true"])
                 y_pred.extend(client["y_pred"])
 
+            y_true_total.extend(y_true)
+            y_pred_total.extend(y_pred)
+
             metrics.append({
                 "loss":loss,
                 "r2": r2_score(y_true, y_pred)
             })
 
-    return metrics
+    return metrics, y_true_total, y_pred_total
 
 def get_time_per_round(training_data):
     time_per_round = []
@@ -169,6 +178,8 @@ def get_time_per_round(training_data):
         for r in training["results_per_round"]:
             time_per_round.append(r["time"])
     return time_per_round
+
+
 
 class ProjectMetricsDialog(tk.Toplevel):
 
@@ -234,6 +245,9 @@ class ProjectMetricsDialog(tk.Toplevel):
     
 
     def _build_classification_metrics(self):
+        pass
+
+    def _build_regression_metrics(self):
         pass
 
     def _build_changes_histogram(self, datasets_changes, frame):
@@ -328,10 +342,94 @@ class ProjectMetricsDialog(tk.Toplevel):
 
         plt.close(fig)
 
-    def _build_regression_metrics(self):
-        pass
+    def _build_scatter_plot(self, frame):
+
+        for widget in frame.winfo_children():
+            widget.destroy()
+
+        y_true = self.project_data["y_true"]
+        y_pred = self.project_data["y_pred"]
+
+        fig, ax = plt.subplots(figsize=(6,4), dpi=100)
+        ax.scatter(y_true, y_pred)
+
+        lims = [
+            min(min(y_true), min(y_pred)),
+            max(max(y_true), max(y_pred)),
+        ]
+        ax.plot(lims, lims, color='#FF6B6B', linestyle='--', linewidth=2, label='Ideal ($y=x$)')
+    
+        ax.set_aspect('equal')
+        ax.set_xlim(lims)
+        ax.set_ylim(lims)
+    
+        ax.set_xlabel('Valores Reales')
+        ax.set_ylabel('Predicciones del Modelo')
+        ax.set_title('Gráfico de Dispersión: Real vs. Predicho')
+        ax.legend()
+        ax.grid(True, linestyle=':', alpha=0.6)
+ 
+        plt.tight_layout()
+        
+        canvas = FigureCanvasTkAgg(fig, master=frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+
+        plt.close(fig)
+
+    def _build_data_efficiency_graphic(self, frame):
+        loss = self.project_data["loss"]
+        composed_changes = datasets_changes["composed_changes"]
+        rondas = sorted(composed_changes.keys())
+        freq = np.array([composed_changes[rnd]['length'] for rnd in rondas])
+        
+        fig, ax1 = plt.subplots(figsize=(8,5), dpi=100)
+        color_data = '#D1E8FF'
+        ax1.set_xlabel('Ronda Federada')
+        ax1.set_ylabel('Datos en datasets', color='#1F77B4')
+        
+        # Datos en datasets
+        ax1.fill_between(range(1, len(freq)+1), freq, color=color_data, alpha=0.3)
+        ax1.tick_params(axis='y', labelcolor='#1F77B4')
+        ax1.grid(True, linestyle=':', alpha=0.3)
+
+        # Loss
+        ax2 = ax1.twinx()
+        color_loss = '#E67E22'
+        ax2.set_ylabel('Loss', color=color_loss)
+        ax2.plot(range(1, len(loss)+1), loss, color=color_loss, marker='o', label='Loss', linewidth=2.5, zorder=10)
+        ax2.tick_params(axis='y', labelcolor=color_loss)
+
+        # Participation
+        ax3 = ax1.twinx()
+        ax3.spines['right'].set_position(('outward', 0))
+        ax3.set_visible(False)
+        ax3.set_ylim(0, 1)
+        ax3.bar(range(1, len(participation) + 1), participation, color='gray', alpha=0.1, width=0.4, label='Participación', zorder=1)
+        plt.title(f'Impacto del volumen de datos y participación en la pérdida', pad=15)
+
+        legend_elements = [
+            Patch(facecolor=color_data, alpha=0.4, label='Volumen Datos'),
+            Line2D([0], [0], color=color_loss, marker='o', label='Loss'),
+            Patch(facecolor='gray', alpha=0.2, label='Participación (%)')
+        ]
+        ax2.legend(handles=legend_elements, loc='upper center', ncol=3, fontsize='small')
+        fig.tight_layout()
+
+        for widget in frame.winfo_children():
+            widget.destroy()
+
+        canvas = FigureCanvasTkAgg(fig, master=frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        plt.close(fig)
 
     def _time_per_round_graphic(self, frame):
+
+        for widget in frame.winfo_children():
+            widget.destroy()
+
         time_per_round = self.project_data["time_per_round"]
 
         fig, ax = plt.subplots(figsize=(6,4), dpi=100)
