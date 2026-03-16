@@ -15,6 +15,7 @@
     {
       "round": 1,
       "global_loss": 2.45,
+      "time": 10,
       "client_stats": [
         {
           "client_id": 1,
@@ -31,6 +32,7 @@
     {
       "round": 2,
       "global_loss": 1.80,
+      "time": 1190,
       "client_stats": [
         {
           "client_id": 1,
