@@ -7,7 +7,10 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+import re
+from pathlib import Path
 
+from src.utils import utils
 from src.gui.dialogs import InfoDialog
 
 """
@@ -154,6 +157,7 @@ def _get_regression_metrics(training_data):
     y_true_total = []
     y_pred_total = []
     for training in training_data:
+        total_clients = len(training["config"]["total_clients"])
         for r in training["results_per_round"]:
             loss = r["global_loss"]
             y_true = []
@@ -167,7 +171,8 @@ def _get_regression_metrics(training_data):
 
             metrics.append({
                 "loss":loss,
-                "r2": r2_score(y_true, y_pred)
+                "r2": r2_score(y_true, y_pred),
+                "participation": len(r["client_stats"])/total_clients
             })
 
     return metrics, y_true_total, y_pred_total
@@ -186,10 +191,11 @@ class ProjectMetricsDialog(tk.Toplevel):
     def __init__(self, parent, training_data, project_data, title="Métricas del Proyecto"):
         super().__init__(parent)
         self.title(title)
-        self.geometry("800x600")
+        self.geometry("875x700")
         self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
+        self.configure(bg=utils.BG_COLOR)
 
         if len(training_data) > 0:
             self.training_data = training_data
@@ -204,7 +210,7 @@ class ProjectMetricsDialog(tk.Toplevel):
 
     def create_widgets(self):
 
-        container = tk.Frame(self)
+        container = tk.Frame(self, bg=utils.BG_COLOR)
         container.pack(fill="both", expand=True)
 
         self.canvas = tk.Canvas(container, bg=utils.BG_COLOR, highlightthickness=0)
@@ -228,6 +234,8 @@ class ProjectMetricsDialog(tk.Toplevel):
         self._build_params()
         self._build_metrics()
         
+    def _on_configure(self, event):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def _build_params(self):
         tk.Label(self.params_frame, text="Parámetros de entrenamiento", background=utils.BG_COLOR).pack(pady=10)
@@ -245,10 +253,52 @@ class ProjectMetricsDialog(tk.Toplevel):
     
 
     def _build_classification_metrics(self):
-        pass
+        grid_frame = tk.Frame(self.metrics_frame, bg=utils.BG_COLOR)
+        grid_frame.pack(fill="both", expand=True, pady=5)
+        grid_frame.columnconfigure(0, weight=1)
+        grid_frame.columnconfigure(1, weight=1)
+
+        frame1 = tk.Frame(grid_frame, bg=utils.BG_COLOR)
+        frame1.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self._metrics_per_round_graphic(self.project_data["metrics"], frame1)
+
+        frame2 = tk.Frame(grid_frame, bg=utils.BG_COLOR)
+        frame2.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        self._build_data_efficiency_graphic(frame2)
+
+        frame3 = tk.Frame(grid_frame, bg=utils.BG_COLOR)
+        frame3.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        self._time_per_round_graphic(frame3)
+
+        frame4 = tk.Frame(grid_frame, bg=utils.BG_COLOR)
+        frame4.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        self._build_changes_histogram(self.project_data.get("datasets_changes", {"composed_changes":{}}), frame4)
 
     def _build_regression_metrics(self):
-        pass
+        grid_frame = tk.Frame(self.metrics_frame, bg=utils.BG_COLOR)
+        grid_frame.pack(fill="both", expand=True, pady=5)
+        grid_frame.columnconfigure(0, weight=1)
+        grid_frame.columnconfigure(1, weight=1)
+
+        frame1 = tk.Frame(grid_frame, bg=utils.BG_COLOR)
+        frame1.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self._metrics_per_round_graphic(self.project_data["metrics"], frame1)
+
+        frame2 = tk.Frame(grid_frame, bg=utils.BG_COLOR)
+        frame2.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        self._build_data_efficiency_graphic(frame2)
+
+        frame3 = tk.Frame(grid_frame, bg=utils.BG_COLOR)
+        frame3.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        self._time_per_round_graphic(frame3)
+
+        frame4 = tk.Frame(grid_frame, bg=utils.BG_COLOR)
+        frame4.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        self._build_changes_histogram(self.project_data.get("datasets_changes", {"composed_changes":{}}), frame4)
+
+        frame_scatter = tk.Frame(grid_frame, bg=utils.BG_COLOR)
+        frame_scatter.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        self._build_scatter_plot(frame_scatter)
 
     def _build_changes_histogram(self, datasets_changes, frame):
         color_added = "#2ECC71"
@@ -270,17 +320,18 @@ class ProjectMetricsDialog(tk.Toplevel):
         unmodified_part = np.minimum(freq, added)
         modified_part = np.maximum(0, freq - added)
         
-        fig, ax = plt.subplots(figsize=(7,4), dpi=100)
+        fig, ax = plt.subplots(figsize=(4,3), dpi=100)
 
         ax.bar(centers, unmodified_part, width=widths, color=color_normal, edgecolor='black', alpha=0.8, label="Datos sin modificar")
         ax.bar(centers, modified_part, width=widths, color=color_added, edgecolor='black', alpha=0.8, label="Datos añadidos")
 
-        ax.step(borders, np.append(added, added[-1]), where="post", color="#2C3E50", linestyle="--", linewidth=2)
+        if len(added) > 0:
+            ax.step(borders, np.append(added, added[-1]), where="post", color="#2C3E50", linestyle="--", linewidth=2)
 
         ax.set_xticks(borders)
-        ax.set_xlabels("Rondas")
+        ax.set_xlabel("Rondas")
         ax.set_ylabel("Datos en datasets")
-        ax.set_title("Cambios en los datasets a lo largo de las rondas")
+        ax.set_title("Cambios en los datasets")
         ax.legend()
 
         ax.grid(axis='x', linestyle=':', alpha=0.3)
@@ -308,7 +359,7 @@ class ProjectMetricsDialog(tk.Toplevel):
 
         lista_metricas = [m.get(mtr_key, 0) for m in metrics]
 
-        fig, ax1 = plt.subplots(figsize=(6,4), dpi=100)
+        fig, ax1 = plt.subplots(figsize=(4,3), dpi=100)
         
         color_loss = '#E74C3C'
         ax1.set_xlabel('Ronda Federada')
@@ -323,9 +374,13 @@ class ProjectMetricsDialog(tk.Toplevel):
         ax2.plot(rondas, lista_metricas, color=color_metric, marker='x', label=mtr_label)
         ax2.tick_params(axis='y', labelcolor=color_metric)
 
-        ax2.set_ylim(0, 1.05)
+        if is_classification:
+            ax2.set_ylim(0, 1.05)
+        else:
+            min_val = min(lista_metricas) if lista_metricas else 0
+            ax2.set_ylim(min(min_val - 0.1, -0.1), 1.05)
 
-        plt.title(f'Evolución del entrenamiento ({self.project_data["name"]})', pad=15)
+        plt.title(f'Evolución del entrenamiento', pad=15)
 
         lines, labels = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
@@ -350,7 +405,7 @@ class ProjectMetricsDialog(tk.Toplevel):
         y_true = self.project_data["y_true"]
         y_pred = self.project_data["y_pred"]
 
-        fig, ax = plt.subplots(figsize=(6,4), dpi=100)
+        fig, ax = plt.subplots(figsize=(4,3), dpi=100)
         ax.scatter(y_true, y_pred)
 
         lims = [
@@ -378,12 +433,20 @@ class ProjectMetricsDialog(tk.Toplevel):
         plt.close(fig)
 
     def _build_data_efficiency_graphic(self, frame):
-        loss = self.project_data["loss"]
-        composed_changes = datasets_changes["composed_changes"]
+        loss = [m.get("loss", 0) for m in self.project_data["metrics"]]
+        participation = [m.get("participation", 0) for m in self.project_data["metrics"]]
+        
+        datasets_changes = self.project_data.get("datasets_changes", {})
+        composed_changes = datasets_changes.get("composed_changes", {})
+        
+        if not composed_changes:
+            tk.Label(frame, text="No hay cambios de datasets para graficar", bg=utils.BG_COLOR).pack()
+            return
+
         rondas = sorted(composed_changes.keys())
         freq = np.array([composed_changes[rnd]['length'] for rnd in rondas])
         
-        fig, ax1 = plt.subplots(figsize=(8,5), dpi=100)
+        fig, ax1 = plt.subplots(figsize=(4,3), dpi=100)
         color_data = '#D1E8FF'
         ax1.set_xlabel('Ronda Federada')
         ax1.set_ylabel('Datos en datasets', color='#1F77B4')
@@ -432,8 +495,8 @@ class ProjectMetricsDialog(tk.Toplevel):
 
         time_per_round = self.project_data["time_per_round"]
 
-        fig, ax = plt.subplots(figsize=(6,4), dpi=100)
-        ax.bar(range(1, len(time_per_round)+1), time_per_round)
+        fig, ax = plt.subplots(figsize=(4,3), dpi=100)
+        ax.plot(range(1, len(time_per_round)+1), time_per_round, color='#3498DB', marker='o', linewidth=2)
         ax.set_xlabel("Ronda Federada")
         ax.set_ylabel("Tiempo por ronda (segundos)")
         ax.set_title("Tiempo por ronda")
