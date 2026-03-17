@@ -298,8 +298,8 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
     table_data = [cols]
     for node in total_clients:
         row = [node]
-        for idx, class_name in enumerate(classes):
-            row.append(sum(confusion_matrix_per_client[node][idx][j] for j in range(len(classes))))
+        for n_class, class_name in enumerate(classes):
+            row.append(sum(confusion_matrix_per_client[node][n_class][j] for j in range(len(classes))))
         table_data.append(row)
     
     table_styles = [
@@ -336,8 +336,6 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
     story.append(Paragraph(f"Conclusiones del entrenamiento {idx + 1}", styles["Heading3"]))
     story.append(Spacer(1, 6))
     story.append(Paragraph(f"Tiempo total del entrenamiento: {final_metrics['total_time_seconds']} segundos", styles["BodyText"]))
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(get_bias_insight(final_metrics['y_true_final'], final_metrics['y_pred_final'], classes), styles["BodyText"]))
     story.append(Spacer(1, 6))
     story.append(Paragraph("<b>Comparativa de frecuencias: Real vs Predicho:</b>", styles["BodyText"]))
     story.append(Spacer(1, 6))
@@ -487,34 +485,6 @@ def get_distribution_plot(y_true, y_pred, classes):
     plt.close(fig)
     
     return Image(img_buffer, width=400, height=250)
-
-def get_bias_insight(y_true, y_pred, classes):
-    total_muestras = len(y_true)
-    true_counts = Counter(y_true)
-    pred_counts = Counter(y_pred)
-    
-    max_discrepancia = -1
-    clase_critica = None
-    tipo_sesgo = ""
-
-    for i, nombre_clase in enumerate(classes):
-        reales = true_counts.get(i, 0)
-        predichos = pred_counts.get(i, 0)
-        
-        discrepancia = (abs(predichos - reales) / total_muestras) * 100
-        
-        if discrepancia > max_discrepancia:
-            max_discrepancia = discrepancia
-            clase_critica = nombre_clase
-            tipo_sesgo = "sobreestimar" if predichos > reales else "subestimar"
-
-    if max_discrepancia > 10:
-        return (f"<b>Análisis de Sesgo:</b> Se detectó una discrepancia significativa del "
-                f"{max_discrepancia:.1f}% en la clase <b>{clase_critica}</b>. El modelo tiende a "
-                f"{tipo_sesgo} esta categoría, lo que sugiere un desbalance en los datos "
-                f"locales o falta de rasgos distintivos en el entrenamiento federado.")
-    else:
-        return "<b>Análisis de Sesgo:</b> El modelo muestra una distribución equilibrada. No se detectan sesgos significativos."
 
 def get_color_intensity(value, max_value):
     if max_value == 0: return colors.whitesmoke
