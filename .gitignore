@@ -299,6 +299,7 @@ http-client.private.env.json
 *.pdf
 *.md
 !README.md
+!docs/*.md
 
 # Database
 database/
