@@ -110,7 +110,7 @@ class Project:
         if node_id not in self.nodes:
             raise ValueError("Node is not in the project")
         
-        dbcon.command("update", "nodes", {"id": node_id}, {"valid": False})
+        dbcon.command("update", "nodes", {"id": node_id, "valid": 0})
         self.nodes.remove(node_id)
         
     def __getitem__(self, item):
