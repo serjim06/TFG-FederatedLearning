@@ -200,7 +200,7 @@ class ProjectMetricsDialog(tk.Toplevel):
         if len(training_data) > 0:
             self.training_data = training_data
         else:
-            InfoDialog(self, "Error", "No hay datos de entrenamiento", kind="error")
+            InfoDialog(parent, "Error", "No hay datos de entrenamiento", kind="error")
             self.destroy()
             return
 
