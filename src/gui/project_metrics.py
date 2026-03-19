@@ -9,6 +9,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 import re
 from pathlib import Path
+from collections import Counter
 
 from src.utils import utils
 from src.gui.dialogs import InfoDialog
@@ -92,6 +93,9 @@ def get_datasets_changes(nodes):
         pattern = re.compile(r"dataset_(\d+)\.csv")
         
         found_files = []
+
+        if not path.exists():
+            continue
         
         for f in path.glob('dataset_*.csv'):
             coincidence = pattern.search(f.name)
@@ -101,7 +105,9 @@ def get_datasets_changes(nodes):
 
         if len(found_files) > 0:
             datasets_changes[node] = _get_files_changes(found_files)
-            for change in datasets_changes[node]:
+            for change in datasets_changes[node].values():
+                if not isinstance(change, dict):
+                    continue
                 if change["round"] not in composed_changes:
                     composed_changes[change["round"]] = {"added": [], "length": 0}
                 
@@ -134,7 +140,7 @@ def _get_files_changes(files):
         changes[0] = {"round": sorted_files[0][0], "added": [], "length": len(lines_prev)-1}
 
         for line in lines_prev[1:]:
-            changes[0]["added"].append(line.strip().split())
+            changes[0]["added"].append(line.strip().split(","))
     
     for i in range(1, len(sorted_files)):
         file_i = sorted_files[i][1]
@@ -142,10 +148,15 @@ def _get_files_changes(files):
             lines_curr = f.readlines()
             
             changes[i] = {"round": sorted_files[i][0], "added": [], "length": len(lines_curr)-1}
+            # Compara por frecuencias para detectar altas de filas duplicadas.
+            prev_counter = Counter(line.strip() for line in lines_prev[1:])
+            curr_counter = Counter(line.strip() for line in lines_curr[1:])
 
-            for line in lines_curr[1:]:
-                if line not in lines_prev:
-                    changes[i]["added"].append(line.strip().split())
+            for row_text, curr_count in curr_counter.items():
+                added_count = curr_count - prev_counter.get(row_text, 0)
+                if added_count > 0:
+                    for _ in range(added_count):
+                        changes[i]["added"].append(row_text.split(","))
     
             lines_prev = lines_curr
 
@@ -196,6 +207,7 @@ class ProjectMetricsDialog(tk.Toplevel):
         self.transient(parent)
         self.grab_set()
         self.configure(bg=utils.BG_COLOR)
+        utils.get_style()
 
         if len(training_data) > 0:
             self.training_data = training_data
@@ -238,12 +250,78 @@ class ProjectMetricsDialog(tk.Toplevel):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def _build_params(self):
-        tk.Label(self.params_frame, text="Parámetros de entrenamiento", background=utils.BG_COLOR).pack(pady=10)
+        # Panel/card para que los parámetros se lean mejor y mantengan el estilo del proyecto.
+        for widget in self.params_frame.winfo_children():
+            widget.destroy()
 
         params = self.training_data[0]["config"]
+        project_type = self.project_data.get("type", "")
 
-        for key, value in params.items():
-            tk.Label(self.params_frame, text=f"{key}: {value}", background=utils.BG_COLOR).pack()
+        card_bg = "#ffffff"
+        row_bg_a = "#f7f9fc"
+        row_bg_b = "#ffffff"
+        border_color = "#d7e5f7"
+
+        card = tk.Frame(
+            self.params_frame,
+            bg=card_bg,
+            highlightbackground=border_color,
+            highlightthickness=1,
+            padx=14,
+            pady=12,
+        )
+        card.pack(fill="both", expand=True, padx=15, pady=(10, 15))
+
+        header = tk.Frame(card, bg=card_bg)
+        header.pack(fill="x")
+
+        tk.Label(
+            header,
+            text="Parámetros de entrenamiento",
+            bg=card_bg,
+            fg="#1d2d44",
+            font=(utils.FONT, 13, "bold"),
+        ).pack(side="left")
+
+        badge_text = "Clasificación" if project_type == "classification" else "Regresión"
+        tk.Label(
+            header,
+            text=badge_text,
+            bg=card_bg,
+            fg="#3498DB",
+            font=(utils.FONT, 11, "bold"),
+            padx=10,
+        ).pack(side="right")
+
+        ttk.Separator(card, orient="horizontal").pack(fill="x", pady=(10, 12))
+
+        grid = tk.Frame(card, bg=card_bg)
+        grid.pack(fill="both", expand=True)
+        grid.columnconfigure(0, weight=0)
+        grid.columnconfigure(1, weight=1)
+
+        for i, (key, value) in enumerate(params.items()):
+            row_bg = row_bg_a if (i % 2 == 0) else row_bg_b
+
+            tk.Label(
+                grid,
+                text=str(key),
+                bg=row_bg,
+                fg="#2c3e50",
+                font=(utils.FONT, 10, "bold"),
+                anchor="w",
+            ).grid(row=i, column=0, sticky="w", padx=(6, 10), pady=4)
+
+            tk.Label(
+                grid,
+                text=str(value),
+                bg=row_bg,
+                fg="#1d2d44",
+                font=(utils.FONT, 10),
+                anchor="w",
+                justify="left",
+                wraplength=520,
+            ).grid(row=i, column=1, sticky="w", padx=(0, 6), pady=4)
         
     def _build_metrics(self):
         if self.project_data["type"] == "classification":
@@ -307,28 +385,34 @@ class ProjectMetricsDialog(tk.Toplevel):
         for widget in frame.winfo_children():
             widget.destroy()
 
-        composed_changes = datasets_changes["composed_changes"]
+        composed_changes = datasets_changes.get("composed_changes", {})
+        if not composed_changes:
+            tk.Label(frame, text="No hay cambios de datasets para graficar", bg=utils.BG_COLOR).pack()
+            return
 
-        borders = np.array([rnd for rnd in sorted(composed_changes.keys())])
-        widths = np.diff(borders)
+        rounds = sorted(composed_changes.keys())
+        x = np.array(rounds, dtype=float)
+        freq = np.array([composed_changes[rnd]["length"] for rnd in rounds], dtype=float)
+        added = np.array([len(composed_changes[rnd]["added"]) for rnd in rounds], dtype=float)
 
-        centers = borders[:-1] + widths / 2
-
-        freq = np.array([composed_changes[rnd]["length"] for rnd in borders])
-        added = np.array([len(composed_changes[rnd]["added"]) for rnd in borders])
-
-        unmodified_part = np.minimum(freq, added)
-        modified_part = np.maximum(0, freq - added)
+        added_capped = np.minimum(added, freq)
+        normal_part = np.maximum(0, freq - added_capped)
         
         fig, ax = plt.subplots(figsize=(4,3), dpi=100)
 
-        ax.bar(centers, unmodified_part, width=widths, color=color_normal, edgecolor='black', alpha=0.8, label="Datos sin modificar")
-        ax.bar(centers, modified_part, width=widths, color=color_added, edgecolor='black', alpha=0.8, label="Datos añadidos")
+        if len(x) > 1:
+            min_step = np.min(np.diff(x))
+            bar_width = max(0.4, min(0.8, float(min_step) * 0.7))
+        else:
+            bar_width = 0.6
+
+        ax.bar(x, normal_part, width=bar_width, color=color_normal, edgecolor='black', alpha=0.8, label="Datos sin modificar")
+        ax.bar(x, added_capped, width=bar_width, bottom=normal_part, color=color_added, edgecolor='black', alpha=0.8, label="Datos añadidos")
 
         if len(added) > 0:
-            ax.step(borders, np.append(added, added[-1]), where="post", color="#2C3E50", linestyle="--", linewidth=2)
+            ax.step(x, added, where="mid", color="#2C3E50", linestyle="--", linewidth=2, label="Añadidos por ronda")
 
-        ax.set_xticks(borders)
+        ax.set_xticks(x)
         ax.set_xlabel("Rondas")
         ax.set_ylabel("Datos en datasets")
         ax.set_title("Cambios en los datasets")
@@ -384,7 +468,7 @@ class ProjectMetricsDialog(tk.Toplevel):
 
         lines, labels = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
-        ax2.legend(lines + lines2, labels + labels2, loc='upper center', ncol=2)
+        ax2.legend(lines + lines2, labels + labels2, loc='lower center', ncol=2)
 
         fig.tight_layout()
 
@@ -433,8 +517,10 @@ class ProjectMetricsDialog(tk.Toplevel):
         plt.close(fig)
 
     def _build_data_efficiency_graphic(self, frame):
-        loss = [m.get("loss", 0) for m in self.project_data["metrics"]]
-        participation = [m.get("participation", 0) for m in self.project_data["metrics"]]
+        metrics = self.project_data.get("metrics", [])
+        loss = [m.get("loss", 0) for m in metrics]
+        participation = [m.get("participation", 0) for m in metrics]
+        rounds_metrics = [m.get("round", i + 1) for i, m in enumerate(metrics)]
         
         datasets_changes = self.project_data.get("datasets_changes", {})
         composed_changes = datasets_changes.get("composed_changes", {})
@@ -443,40 +529,50 @@ class ProjectMetricsDialog(tk.Toplevel):
             tk.Label(frame, text="No hay cambios de datasets para graficar", bg=utils.BG_COLOR).pack()
             return
 
-        rondas = sorted(composed_changes.keys())
-        freq = np.array([composed_changes[rnd]['length'] for rnd in rondas])
+        rounds_data = sorted(composed_changes.keys())
+        freq = np.array([composed_changes[rnd]['length'] for rnd in rounds_data], dtype=float)
         
         fig, ax1 = plt.subplots(figsize=(4,3), dpi=100)
         color_data = '#D1E8FF'
+        color_data_line = '#1F77B4'
+        color_part = '#7F8C8D'
         ax1.set_xlabel('Ronda Federada')
-        ax1.set_ylabel('Datos en datasets', color='#1F77B4')
+        ax1.set_ylabel('Datos en datasets', color=color_data_line)
         
-        # Datos en datasets
-        ax1.fill_between(range(1, len(freq)+1), freq, color=color_data, alpha=0.3)
-        ax1.tick_params(axis='y', labelcolor='#1F77B4')
+        # Volumen de datos
+        ax1.fill_between(rounds_data, freq, color=color_data, alpha=0.35, label='Volumen Datos', zorder=1)
+        ax1.plot(rounds_data, freq, color=color_data_line, linewidth=1.8, marker='o', zorder=2)
+        ax1.tick_params(axis='y', labelcolor=color_data_line)
         ax1.grid(True, linestyle=':', alpha=0.3)
 
-        # Loss
+        # Loss (eje derecho)
         ax2 = ax1.twinx()
         color_loss = '#E67E22'
         ax2.set_ylabel('Loss', color=color_loss)
-        ax2.plot(range(1, len(loss)+1), loss, color=color_loss, marker='o', label='Loss', linewidth=2.5, zorder=10)
+        ax2.plot(rounds_metrics, loss, color=color_loss, marker='o', label='Loss', linewidth=2.5, zorder=10)
         ax2.tick_params(axis='y', labelcolor=color_loss)
 
-        # Participation
+        # Participación (tercer eje derecho, desplazado)
         ax3 = ax1.twinx()
-        ax3.spines['right'].set_position(('outward', 0))
-        ax3.set_visible(False)
+        ax3.spines['right'].set_position(('outward', 42))
         ax3.set_ylim(0, 1)
-        ax3.bar(range(1, len(participation) + 1), participation, color='gray', alpha=0.1, width=0.4, label='Participación', zorder=1)
+        ax3.set_ylabel('Participación', color=color_part)
+        ax3.tick_params(axis='y', labelcolor=color_part)
+        ax3.bar(rounds_metrics, participation, color=color_part, alpha=0.22, width=0.45, label='Participación', zorder=3)
+
+        all_rounds = sorted(set(rounds_data) | set(rounds_metrics))
+        if all_rounds:
+            ax1.set_xticks(all_rounds)
+            ax1.set_xlim(min(all_rounds) - 0.5, max(all_rounds) + 0.5)
+
         plt.title(f'Impacto del volumen de datos y participación en la pérdida', pad=15)
 
         legend_elements = [
             Patch(facecolor=color_data, alpha=0.4, label='Volumen Datos'),
             Line2D([0], [0], color=color_loss, marker='o', label='Loss'),
-            Patch(facecolor='gray', alpha=0.2, label='Participación (%)')
+            Patch(facecolor=color_part, alpha=0.25, label='Participación (%)')
         ]
-        ax2.legend(handles=legend_elements, loc='upper center', ncol=3, fontsize='small')
+        ax1.legend(handles=legend_elements, loc='lower center', ncol=1, fontsize='small')
         fig.tight_layout()
 
         for widget in frame.winfo_children():
