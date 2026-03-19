@@ -128,6 +128,9 @@ Regresión:
 def generate_report(project_id, project_name, project_description, num_rounds, project_type, data, path):
     data = json.loads(data) # loads every training result
 
+    if not data or len(data) == 0:
+        raise ValueError("No data to generate report")
+
     if project_type != "classification" and project_type != "regression":
         raise ValueError("Invalid report type")
     
