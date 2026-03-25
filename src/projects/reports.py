@@ -198,15 +198,15 @@ def add_training_head(story, idx, train_id, strategy, total_clients, styles):
     story.append(Spacer(1, 6))
     story.append(Paragraph(f"Estrategia de agregación: {strategy}", styles["BodyText"]))
     story.append(Spacer(1, 6))
-    story.append(Paragraph(f"Número total de clientes: {len(total_clients)}", styles["BodyText"]))
+    story.append(Paragraph(f"Número total de nodos: {len(total_clients)}", styles["BodyText"]))
     story.append(Spacer(1, 6))
 
-    # Clients
-    story.append(Paragraph("Clientes", styles["Heading3"]))
+    # Nodos
+    story.append(Paragraph("Nodos", styles["Heading3"]))
     story.append(Spacer(1, 6))
     nodes = []
     for node_id in total_clients:
-        nodes.append(ListItem(Paragraph(f"Cliente {node_id}", styles["BodyText"])))
+        nodes.append(ListItem(Paragraph(f"Nodo {node_id}", styles["BodyText"])))
     story.append(ListFlowable(nodes, bulletType="bullet"))
     story.append(Spacer(1, 6))
 
@@ -229,10 +229,10 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
         story.append(ListFlowable(stats, bulletType="bullet"))
     story.append(Spacer(1, 6))
 
-    # Table with precision, recall and f1_score for each client and each class
-    story.append(Paragraph("Precisión, recall y f1_score por cliente y por clase", styles["Heading3"]))
+    # Table with precision, recall and f1_score for each node and each class
+    story.append(Paragraph("Precisión, recall y f1_score por nodo y por clase", styles["Heading3"]))
     story.append(Spacer(1, 6))
-    table_data = [["Cliente", "Clase", "Precisión", "Recall", "F1_score"]]
+    table_data = [["Nodo", "Clase", "Precisión", "Recall", "F1_score"]]
     confusion_matrix = [[0 for _ in range(len(classes))] for _ in range(len(classes))]
     confusion_matrix_per_client = {}
     for client in total_clients:
