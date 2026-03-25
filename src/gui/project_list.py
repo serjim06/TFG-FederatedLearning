@@ -1,8 +1,11 @@
 import json
 from sqlite3 import DatabaseError
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
+from tkinter import filedialog
 import uuid
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import src.db.dbcon as dbcon
 import src.utils.icons.image_finder as image_finder
 from PIL import ImageTk, Image
@@ -10,6 +13,9 @@ from TkToolTip import ToolTip
 from src.gui.new_project import NewProjectDialog, SeeProjectDialog
 from src.gui.base_list import SEC_BTN_STYLE, BaseListFrame
 from src.gui import dialogs
+from src.gui.project_metrics import ProjectMetricsDialog, get_metrics_per_round, get_time_per_round, get_datasets_changes
+from src.projects.reports import generate_report
+from src.projects.reports import generate_report
 from collections import Counter
 from math import sqrt
 
@@ -18,11 +24,78 @@ class ProjectListFrame(BaseListFrame):
             super().__init__(parent, switch_frame, usuario, columns={"id": 330, "name": 55, "description": 300, "pending": 15})
             
             self.winfo_toplevel().bind("<Configure>", self._reposition_suggestions)
+
+            # Executor para tareas pesadas sin bloquear la UI
+            self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ProjectListWorker")
+            self._loading_reason = ""
+
+            # Barra de estado inferior (siempre visible)
+            self._status_frame = tk.Frame(self, bg="#e6edf7", bd=1, relief="solid")
+            self._status_frame.pack(side="bottom", fill="x")
+
+            self._status_label = tk.Label(
+                self._status_frame,
+                text="Listo.",
+                anchor="w",
+                bg="#e6edf7",
+                fg="#1d2d44",
+                font=("Segoe UI", 10)
+            )
+            self._status_label.pack(side="left", fill="x", expand=True, padx=10, pady=6)
+
+
+    def destroy(self):
+        try:
+            if hasattr(self, "_executor") and self._executor is not None:
+                self._executor.shutdown(wait=False, cancel_futures=True)
+        except Exception:
+            pass
+        super().destroy()
+
+    def _show_loading(self, reason: str = "Cargando…"):
+        self._loading_reason = reason
+
+        try:
+            self._status_label.configure(text=reason)
+        except Exception:
+            pass
+
+        # forzar render del estado antes de continuar
+        try:
+            self.update_idletasks()
+        except Exception:
+            pass
+
+        # evitar interacción mientras carga
+        try:
+            self.metrics_button.state(["disabled"])
+            self.config_button.state(["disabled"])
+            self.play_button.state(["disabled"])
+            self.report_button.state(["disabled"])
+            self.tree.configure(selectmode="none")
+        except Exception:
+            pass
+
+    def _hide_loading(self):
+        self._loading_reason = ""
+        try:
+            self._status_label.configure(text="Listo.")
+        except Exception:
+            pass
+
+        # restaurar interacción (botones según selección actual)
+        try:
+            self.tree.configure(selectmode="extended")
+        except Exception:
+            pass
+        self._selected_item_changed()
     
     def _insert_extra_buttons(self):
             self.config_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("settings")).resize((24,24)))
             self.play_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("play")).resize((24,24)))
-            
+            self.metrics_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("metrics")).resize((24,24)))
+            self.report_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("report")).resize((24,24)))
+
             self.play_button = ttk.Button(self.toolbox, image=self.play_image, text="", compound="left",
                        command=lambda e: print("no implementado"), width=2, style=SEC_BTN_STYLE)
             self.play_button.pack(side="left", padx=5, pady=5)
@@ -32,11 +105,23 @@ class ProjectListFrame(BaseListFrame):
                        command=self._config_project, width=2, style="Sec.TButton")
             self.config_button.pack(side="left", padx=5, pady=5)
             self.config_button.state(["disabled"])
+
+            self.metrics_button = ttk.Button(self.toolbox, image=self.metrics_image, text="", compound="left",
+                       command=self._view_metrics, width=2, style=SEC_BTN_STYLE)
+            self.metrics_button.pack(side="left", padx=5, pady=5)
+            self.metrics_button.state(["disabled"])
+
+            self.report_button = ttk.Button(self.toolbox, image=self.report_image, text="", compound="left",
+                       command=self._download_report, width=2, style=SEC_BTN_STYLE)
+            self.report_button.pack(side="left", padx=5, pady=5)
+            self.report_button.state(["disabled"])
         
             ToolTip(self.add_button, text="Crear un proyecto nuevo", delay=0.5)
             ToolTip(self.delete_button, text="Eliminar proyecto seleccionado", delay=0.5)
             ToolTip(self.play_button, text="Realizar una predicción en el proyecto seleccionado", delay=0.5)
             ToolTip(self.config_button, text="Configurar el proyecto seleccionado", delay=0.5)
+            ToolTip(self.metrics_button, text="Ver las métricas del proyecto seleccionado", delay=0.5)
+            ToolTip(self.report_button, text="Descargar el reporte del proyecto seleccionado", delay=0.5)
             
             self._insert_search_bar()
        
@@ -206,6 +291,8 @@ class ProjectListFrame(BaseListFrame):
         super()._selected_item_changed()
         self.config_button.state(["!disabled"]) if self.tree.selection() else self.config_button.state(["disabled"])
         self.play_button.state(["!disabled"]) if self.tree.selection() else self.play_button.state(["disabled"])
+        self.metrics_button.state(["!disabled"]) if self.tree.selection() else self.metrics_button.state(["disabled"])
+        self.report_button.state(["!disabled"]) if self.tree.selection() else self.report_button.state(["disabled"])
     
     def _config_project(self):
         seleccionado = self.tree.selection()
@@ -224,6 +311,122 @@ class ProjectListFrame(BaseListFrame):
         else:
             dialogs.InfoDialog(self, "Información", "No hay ningún proyecto seleccionado para configurar.", "info")
     
+    def _view_metrics(self):
+        seleccionado = self.tree.selection()
+        if seleccionado:
+            item_id = seleccionado[0]
+            values = self.tree.item(item_id, "values")
+            project_id = uuid.UUID(values[0]).bytes
+            try:
+                project_data = dbcon.command("select", "projects", {"id": project_id})
+                if project_data:
+                    self._show_loading("Calculando métricas…")
+
+                    def _compute(payload):
+                        training_data = json.loads(payload[0]["training_results"])
+                        project_type = payload[0]["type"]
+                        metrics = get_metrics_per_round(training_data, project_type)
+                        time_per_round = get_time_per_round(training_data)
+                        nodes = json.loads(payload[0]["nodes"])
+                        datasets_changes = get_datasets_changes(nodes)
+                        return training_data, project_type, metrics, time_per_round, datasets_changes
+
+                    future = self._executor.submit(_compute, project_data)
+
+                    def _done_callback(f):
+                        def _finish_on_ui_thread():
+                            try:
+                                training_data, project_type, metrics, time_per_round, datasets_changes = f.result()
+                                project_data[0]["time_per_round"] = time_per_round
+                                project_data[0]["datasets_changes"] = datasets_changes
+                                project_data[0]["metrics"] = metrics
+                                self._hide_loading()
+                                ProjectMetricsDialog(self, training_data, project_data[0], title="Métricas del Proyecto")
+                            except Exception as e:
+                                self._hide_loading()
+                                dialogs.InfoDialog(self, "Error", str(e), "error")
+
+                        try:
+                            self.after(0, _finish_on_ui_thread)
+                        except Exception:
+                            # si el frame ya no existe
+                            pass
+
+                    future.add_done_callback(_done_callback)
+            except (ValueError, DatabaseError) as e:
+                dialogs.InfoDialog(self, "Error", str(e) + "errorororejoriaior", "error")
+        else:
+            dialogs.InfoDialog(self, "Información", "No hay ningún proyecto seleccionado para ver las métricas.", "info")
+    
+    def _download_report(self):
+        seleccionado = self.tree.selection()
+        if not seleccionado:
+            dialogs.InfoDialog(self, "Información", "No hay ningún proyecto seleccionado para generar el reporte.", "info")
+            return
+
+        item_id = seleccionado[0]
+        values = self.tree.item(item_id, "values")
+        project_id = uuid.UUID(values[0]).bytes
+
+        # Elegir destino del PDF
+        path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf")],
+            title="Guardar reporte",
+            confirmoverwrite=True,
+        )
+        if not path:
+            return
+
+        try:
+            project_data = dbcon.command("select", "projects", {"id": project_id})
+            if not project_data:
+                dialogs.InfoDialog(self, "Error", "No se han encontrado datos del proyecto para generar el reporte.", "error")
+                return
+
+            # Informar al usuario y lanzar generación en segundo plano
+            self._show_loading("Generando reporte…")
+
+            def _compute(proj, output_path):
+                # Se ejecuta en un hilo: no tocar la UI aquí
+                training_data = proj[0]["training_results"]
+                project_type = proj[0]["type"]
+                num_rounds = proj[0]["training_round"]
+                generate_report(
+                    str(uuid.UUID(bytes=proj[0]["id"])),
+                    proj[0]["name"],
+                    proj[0]["description"],
+                    num_rounds,
+                    project_type,
+                    training_data,
+                    output_path,
+                )
+
+            future = self._executor.submit(_compute, project_data, path)
+
+            def _done_callback(f):
+                def _finish_on_ui_thread():
+                    try:
+                        # Propagará cualquier excepción levantada en el hilo
+                        f.result()
+                        self._hide_loading()
+                        dialogs.InfoDialog(self, "Éxito", "Reporte generado correctamente.", "info")
+                    except Exception as e:
+                        self._hide_loading()
+                        dialogs.InfoDialog(self, "Error", f"No se pudo generar el reporte: {e}", "error")
+
+                try:
+                    self.after(0, _finish_on_ui_thread)
+                except Exception:
+                    # El frame puede haberse destruido
+                    pass
+
+            future.add_done_callback(_done_callback)
+
+        except (ValueError, DatabaseError) as e:
+            self._hide_loading()
+            dialogs.InfoDialog(self, "Error", f"No se pudo generar el reporte: {e}", "error")
+
     def _add_item(self):
         try: 
             NewProjectDialog(self, self.usuario["id"])

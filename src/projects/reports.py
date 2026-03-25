@@ -9,7 +9,6 @@ from sklearn.metrics import mean_absolute_error, r2_score
 
 import io
 import numpy as np
-from collections import Counter
 import json
 from datetime import datetime
 
@@ -128,6 +127,9 @@ Regresión:
 def generate_report(project_id, project_name, project_description, num_rounds, project_type, data, path):
     data = json.loads(data) # loads every training result
 
+    if not data or len(data) == 0:
+        raise ValueError("No data to generate report")
+
     if project_type != "classification" and project_type != "regression":
         raise ValueError("Invalid report type")
     
@@ -195,15 +197,15 @@ def add_training_head(story, idx, train_id, strategy, total_clients, styles):
     story.append(Spacer(1, 6))
     story.append(Paragraph(f"Estrategia de agregación: {strategy}", styles["BodyText"]))
     story.append(Spacer(1, 6))
-    story.append(Paragraph(f"Número total de clientes: {len(total_clients)}", styles["BodyText"]))
+    story.append(Paragraph(f"Número total de nodos: {len(total_clients)}", styles["BodyText"]))
     story.append(Spacer(1, 6))
 
-    # Clients
-    story.append(Paragraph("Clientes", styles["Heading3"]))
+    # Nodos
+    story.append(Paragraph("Nodos", styles["Heading3"]))
     story.append(Spacer(1, 6))
     nodes = []
     for node_id in total_clients:
-        nodes.append(ListItem(Paragraph(f"Cliente {node_id}", styles["BodyText"])))
+        nodes.append(ListItem(Paragraph(f"Nodo {node_id}", styles["BodyText"])))
     story.append(ListFlowable(nodes, bulletType="bullet"))
     story.append(Spacer(1, 6))
 
@@ -226,10 +228,13 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
         story.append(ListFlowable(stats, bulletType="bullet"))
     story.append(Spacer(1, 6))
 
-    # Table with precision, recall and f1_score for each client and each class
-    story.append(Paragraph("Precisión, recall y f1_score por cliente y por clase", styles["Heading3"]))
+    story.append(Paragraph(f"Conclusiones del entrenamiento {idx + 1}", styles["Heading3"]))
     story.append(Spacer(1, 6))
-    table_data = [["Cliente", "Clase", "Precisión", "Recall", "F1_score"]]
+    story.append(Paragraph(f"Tiempo total del entrenamiento: {final_metrics['total_time_seconds']} segundos", styles["BodyText"]))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph("Precisión, recall y f1_score por nodo y por clase", styles["Heading3"]))
+    story.append(Spacer(1, 6))
+    table_data = [["Nodo", "Clase", "Precisión", "Recall", "F1_score"]]
     confusion_matrix = [[0 for _ in range(len(classes))] for _ in range(len(classes))]
     confusion_matrix_per_client = {}
     for client in total_clients:
@@ -298,8 +303,8 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
     table_data = [cols]
     for node in total_clients:
         row = [node]
-        for idx, class_name in enumerate(classes):
-            row.append(sum(confusion_matrix_per_client[node][idx][j] for j in range(len(classes))))
+        for n_class, class_name in enumerate(classes):
+            row.append(sum(confusion_matrix_per_client[node][n_class][j] for j in range(len(classes))))
         table_data.append(row)
     
     table_styles = [
@@ -315,7 +320,7 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
 
     col_maxima = []
     for c in range(1, len(cols)):
-        valores_columna = [fila[c] for fila in table_data[1:]] # Ignoramos la cabecera
+        valores_columna = [fila[c] for fila in table_data[1:]]
         col_maxima.append(max(valores_columna) if valores_columna else 1)
     
     for row_idx, row in enumerate(table_data[1:], start=1):
@@ -332,16 +337,9 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
     table.setStyle(TableStyle(table_styles))
     story.append(table)
     story.append(Spacer(1, 6))
-
-    story.append(Paragraph(f"Conclusiones del entrenamiento {idx + 1}", styles["Heading3"]))
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(f"Tiempo total del entrenamiento: {final_metrics['total_time_seconds']} segundos", styles["BodyText"]))
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(get_bias_insight(final_metrics['y_true_final'], final_metrics['y_pred_final'], classes), styles["BodyText"]))
-    story.append(Spacer(1, 6))
     story.append(Paragraph("<b>Comparativa de frecuencias: Real vs Predicho:</b>", styles["BodyText"]))
     story.append(Spacer(1, 6))
-    story.append(get_distribution_plot(final_metrics['y_true_final'], final_metrics['y_pred_final'], classes))
+    story.append(get_distribution_plot(confusion_matrix, classes))
     story.append(Spacer(1, 6))
     
     
@@ -462,13 +460,10 @@ def get_precision_recall_f1score(client, results_per_round, classes):
     
     return precision, recall, f1_score, confusion_matrix
 
-def get_distribution_plot(y_true, y_pred, classes):
-    true_counts = Counter(y_true)
-    pred_counts = Counter(y_pred)
-    
+def get_distribution_plot(confusion_matrix, classes):
     x = range(len(classes))
-    true_vals = [true_counts.get(i, 0) for i in x]
-    pred_vals = [pred_counts.get(i, 0) for i in x]
+    true_vals = [sum(confusion_matrix[i][j] for j in x) for i in x]
+    pred_vals = [sum(confusion_matrix[i][j] for i in x) for j in x]
 
     fig, ax = plt.subplots(figsize=(6, 4))
     width = 0.35
@@ -487,34 +482,6 @@ def get_distribution_plot(y_true, y_pred, classes):
     plt.close(fig)
     
     return Image(img_buffer, width=400, height=250)
-
-def get_bias_insight(y_true, y_pred, classes):
-    total_muestras = len(y_true)
-    true_counts = Counter(y_true)
-    pred_counts = Counter(y_pred)
-    
-    max_discrepancia = -1
-    clase_critica = None
-    tipo_sesgo = ""
-
-    for i, nombre_clase in enumerate(classes):
-        reales = true_counts.get(i, 0)
-        predichos = pred_counts.get(i, 0)
-        
-        discrepancia = (abs(predichos - reales) / total_muestras) * 100
-        
-        if discrepancia > max_discrepancia:
-            max_discrepancia = discrepancia
-            clase_critica = nombre_clase
-            tipo_sesgo = "sobreestimar" if predichos > reales else "subestimar"
-
-    if max_discrepancia > 10:
-        return (f"<b>Análisis de Sesgo:</b> Se detectó una discrepancia significativa del "
-                f"{max_discrepancia:.1f}% en la clase <b>{clase_critica}</b>. El modelo tiende a "
-                f"{tipo_sesgo} esta categoría, lo que sugiere un desbalance en los datos "
-                f"locales o falta de rasgos distintivos en el entrenamiento federado.")
-    else:
-        return "<b>Análisis de Sesgo:</b> El modelo muestra una distribución equilibrada. No se detectan sesgos significativos."
 
 def get_color_intensity(value, max_value):
     if max_value == 0: return colors.whitesmoke
