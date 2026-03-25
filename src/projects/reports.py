@@ -9,7 +9,6 @@ from sklearn.metrics import mean_absolute_error, r2_score
 
 import io
 import numpy as np
-from collections import Counter
 import json
 from datetime import datetime
 
@@ -229,7 +228,10 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
         story.append(ListFlowable(stats, bulletType="bullet"))
     story.append(Spacer(1, 6))
 
-    # Table with precision, recall and f1_score for each node and each class
+    story.append(Paragraph(f"Conclusiones del entrenamiento {idx + 1}", styles["Heading3"]))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(f"Tiempo total del entrenamiento: {final_metrics['total_time_seconds']} segundos", styles["BodyText"]))
+    story.append(Spacer(1, 6))
     story.append(Paragraph("Precisión, recall y f1_score por nodo y por clase", styles["Heading3"]))
     story.append(Spacer(1, 6))
     table_data = [["Nodo", "Clase", "Precisión", "Recall", "F1_score"]]
@@ -318,7 +320,7 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
 
     col_maxima = []
     for c in range(1, len(cols)):
-        valores_columna = [fila[c] for fila in table_data[1:]] # Ignoramos la cabecera
+        valores_columna = [fila[c] for fila in table_data[1:]]
         col_maxima.append(max(valores_columna) if valores_columna else 1)
     
     for row_idx, row in enumerate(table_data[1:], start=1):
@@ -335,14 +337,9 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
     table.setStyle(TableStyle(table_styles))
     story.append(table)
     story.append(Spacer(1, 6))
-
-    story.append(Paragraph(f"Conclusiones del entrenamiento {idx + 1}", styles["Heading3"]))
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(f"Tiempo total del entrenamiento: {final_metrics['total_time_seconds']} segundos", styles["BodyText"]))
-    story.append(Spacer(1, 6))
     story.append(Paragraph("<b>Comparativa de frecuencias: Real vs Predicho:</b>", styles["BodyText"]))
     story.append(Spacer(1, 6))
-    story.append(get_distribution_plot(final_metrics['y_true_final'], final_metrics['y_pred_final'], classes))
+    story.append(get_distribution_plot(confusion_matrix, classes))
     story.append(Spacer(1, 6))
     
     
@@ -463,13 +460,10 @@ def get_precision_recall_f1score(client, results_per_round, classes):
     
     return precision, recall, f1_score, confusion_matrix
 
-def get_distribution_plot(y_true, y_pred, classes):
-    true_counts = Counter(y_true)
-    pred_counts = Counter(y_pred)
-    
+def get_distribution_plot(confusion_matrix, classes):
     x = range(len(classes))
-    true_vals = [true_counts.get(i, 0) for i in x]
-    pred_vals = [pred_counts.get(i, 0) for i in x]
+    true_vals = [sum(confusion_matrix[i][j] for j in x) for i in x]
+    pred_vals = [sum(confusion_matrix[i][j] for i in x) for j in x]
 
     fig, ax = plt.subplots(figsize=(6, 4))
     width = 0.35
