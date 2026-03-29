@@ -90,8 +90,8 @@ class NodeListFrame(BaseListFrame):
 
         self.layers = {}
 
-        n_img = Image.open(image_finder.find_image("node"))
-        p_img = Image.open(image_finder.find_image("project"))
+        n_img = Image.open(image_finder.find_image("node")).resize((16, 16))
+        p_img = Image.open(image_finder.find_image("project")).resize((16, 16))
 
         self.project_image = ImageTk.PhotoImage(p_img)
         self.node_image = ImageTk.PhotoImage(n_img)
