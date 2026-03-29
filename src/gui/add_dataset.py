@@ -31,7 +31,6 @@ def _create_new_dataset(
 def _get_last_dataset_path(
     node_uuid: str, cur_round: int, in_features: list, out_features: list
 ) -> Path:
-    """Replica la lógica de `ConfirmResultsFrame._get_last_dataset` para un nodo dado."""
     node_dir = DATASETS_ROOT / _node_dir_name(node_uuid)
     pattern = re.compile(r"dataset_(\d+)\.csv")
     found_files = []
@@ -62,7 +61,6 @@ def _labels_match_row(row: list, expected_labels: list) -> bool:
 
 
 def _same_labels_wrong_order(row: list, expected_labels: list) -> bool:
-    """Mismas etiquetas que el proyecto pero en otro orden (cabecera incorrecta)."""
     if len(row) != len(expected_labels):
         return False
     got = [(x or "").strip() for x in row]
