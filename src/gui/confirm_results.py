@@ -152,11 +152,11 @@ class ConfirmResultsFrame (tk.Frame):
         ### Recupera el último dataset. Si el correspondiente a la ronda actual no existe, lo crea.
         path = self._get_last_dataset(row)
                 
-        with open(path, "a") as f:
-            for _, feature in self.pending[row-1]["data"].items():
-                f.write(feature)    
-                f.write(",")
-            f.write("\n")
+        with open(path, "a", encoding="utf-8") as f:
+            line = ",".join(
+                str(feature) for _, feature in self.pending[row - 1]["data"].items()
+            )
+            f.write(line + "\n")
         
         dialogs.InfoDialog(self, "Confirmación", f"Resultado confirmado para el nodo {self.pending[row-1]['node']}", "info")
         del self.pending[row-1]
@@ -201,29 +201,25 @@ class ConfirmResultsFrame (tk.Frame):
         path = Path(__file__).parent.parent.parent / "database" / "datasets" / self.pending[row-1]["node"] / f"dataset_{self.cur_round}.csv"
         path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(path, "w") as f:
-            for labels in json.loads(self.labels["in_features"]):
-                f.write(labels)
-                f.write(",")
-            for labels in json.loads(self.labels["out_features"]):
-                f.write(labels)
-                f.write(",")
-            f.write("\n")
+        in_labels = json.loads(self.labels["in_features"])
+        out_labels = json.loads(self.labels["out_features"])
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(",".join(in_labels + out_labels) + "\n")
             
         return path
         
     def correct_result(self, row, out_features):
         path = self._get_last_dataset(row)
         
-        with open(path, "a") as f:
-            for key, feature in self.pending[row-1]["data"].items():
-                if key in json.loads(self.labels["in_features"]):
-                    f.write(feature)
-                    f.write(",")
-            for key, value in out_features.items():
-                f.write(value)
-                f.write(",")
-            f.write("\n")
+        in_labels = json.loads(self.labels["in_features"])
+        parts = []
+        for key, feature in self.pending[row - 1]["data"].items():
+            if key in in_labels:
+                parts.append(str(feature))
+        for _, value in out_features.items():
+            parts.append(str(value))
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(",".join(parts) + "\n")
         
         dialogs.InfoDialog(self, "Confirmación", f"Resultado corregido para el nodo {self.pending[row-1]['node']}", "info")
         del self.pending[row-1]

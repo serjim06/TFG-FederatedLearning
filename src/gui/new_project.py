@@ -15,6 +15,7 @@ from src.utils.icons import image_finder
 from src.db import dbcon
 from src.projects.projects import Project
 from src.projects.projects import cargar_modulo, verificar_modulo
+from src.gui.add_dataset import AddDatasetDialog
 from src.gui.confirm_results import ConfirmResultsFrame
 from src.utils import utils
 from src.gui import dialogs
@@ -55,19 +56,22 @@ class ScrollableNodesFrame(ttk.Frame):
 FORM_LABEL = "Form.TLabel"
 
 class NewProject(ttk.Frame):
-    def __init__(self, parent, project, user_id=None):
+    def __init__(self, parent, project, user_id=None, *, grid_row=0):
         super().__init__(parent, padding=10)
-        self.grid(sticky="nsew")
         self.configure(style="TFrame")
         
         self.user_id = user_id
 
         parent.columnconfigure(0, weight=1)
-        parent.rowconfigure(0, weight=1)
+        parent.rowconfigure(grid_row, weight=1)
+        self.grid(row=grid_row, column=0, sticky="nsew")
 
         self.columnconfigure(0, weight=1)
         self.project = project
-        
+        self.ruta = None
+        self.input_features = []
+        self.output_features = []
+
         self._build_ui()
 
     def _build_ui(self):
@@ -392,6 +396,11 @@ class NewProject(ttk.Frame):
                    
     
     def _load_project_data(self):
+        mp = (self.project.get("model_path") or "").strip()
+        self.ruta = Path(mp).as_posix() if mp else ""
+        self.input_features = json.loads(self.project["input_features"])
+        self.output_features = json.loads(self.project["output_features"])
+
         self.name_entry.insert("1.0", self.project["name"])
         self.description_text.insert("1.0", self.project["description"])
         
@@ -447,7 +456,9 @@ class NewProject(ttk.Frame):
     def get_data(self):
         if not self.name_entry.get("1.0", "end-1c").strip():
             raise ValueError("El nombre del proyecto no puede estar vacío.")
-        
+        if not self.ruta:
+            raise ValueError("Debes seleccionar un modelo (.py) antes de continuar.")
+
         return {
             "name": self.name_entry.get("1.0", "end-1c").strip(),
             "description": self.description_text.get("1.0", "end-1c").strip(),
@@ -560,7 +571,6 @@ class SeeProjectDialog(tk.Toplevel):
         self.configure(bg=utils.BG_COLOR)
 
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)
 
         self._build_modify_ui(project_id)
         
@@ -582,20 +592,22 @@ class SeeProjectDialog(tk.Toplevel):
         
         self.title(f"Modificar Proyecto: {self.project['name']}")
 
-        self.btns_row = 1
-
         self.unconfirmed = json.loads(self.project["unconfirmed_results"])
 
+        grid_row = 0
         if self.unconfirmed:
-            ttk.Button(self, text="Confirmar Resultados Pendientes", command=self._confirm_results, style="Accent.TButton", width=self.winfo_width() - 20).grid(row=0, column=0, sticky="ew", padx=10, pady=5)
-            self.btns_row += 1
+            ttk.Button(self, text="Confirmar Resultados Pendientes", command=self._confirm_results, style="Accent.TButton", width=self.winfo_width() - 20).grid(row=grid_row, column=0, sticky="ew", padx=10, pady=5)
+            grid_row += 1
 
-        self.form = NewProject(self, self.project)
-        
+        ttk.Button(self, text="Añadir dataset", command=self._add_dataset, style="Accent.TButton", width=self.winfo_width() - 20).grid(row=grid_row, column=0, sticky="ew", padx=10, pady=5)
+        grid_row += 1
+
+        self.form = NewProject(self, self.project, grid_row=grid_row)
+        grid_row += 1
 
         # ---------- Botones ----------
         btns = ttk.Frame(self, padding=10, style="TFrame")
-        btns.grid(row=self.btns_row, column=0, sticky="ew")
+        btns.grid(row=grid_row, column=0, sticky="ew")
 
         btns.columnconfigure(0, weight=1)
 
@@ -605,6 +617,13 @@ class SeeProjectDialog(tk.Toplevel):
         ttk.Button(inner, text="Guardar Cambios", command=self._on_mod, style="Accent.TButton").pack(side="left")
         ttk.Button(inner, text="Cancelar", command=self.destroy, style="Accent.TButton").pack(side="left", padx=(10, 0))
     
+    def _add_dataset(self):
+        nodes = json.loads(self.project["nodes"])
+        if not nodes:
+            dialogs.InfoDialog(self, "Información", "El proyecto no tiene nodos asignados.", "warning")
+            return
+        AddDatasetDialog(self, nodes, self.project)
+        
     def _confirm_results(self):
         for widget in self.winfo_children():
             widget.destroy()
