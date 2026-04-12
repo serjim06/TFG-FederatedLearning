@@ -1,69 +1,25 @@
 from abc import ABC, abstractmethod
+
 import torch.nn as nn
-from torch.utils.data import DataLoader
+
 
 class BaseModel(ABC):
-    
+    """
+    Contrato del modelo de usuario: define cómo construir/cargar la red PyTorch y qué
+    columnas/features usa el proyecto. El entrenamiento, la evaluación y la predicción
+    se implementan en ``src.models.node``.
+    """
+
     @abstractmethod
     def load_model(self, model_path) -> nn.Module:
+        """Devuelve el módulo PyTorch (arquitectura y, si aplica, pesos cargados desde ``model_path``)."""
         pass
-    
-    @abstractmethod
-    def train(self, train_loader: DataLoader, val_loader: DataLoader, epochs: int, learning_rate: float):
-        pass
-    
-    @abstractmethod
-    def evaluate(self, test_loader: DataLoader): 
-        pass
-    
-    @abstractmethod
-    def predict(self, input_data):
-        """
-        Predicts using the model. The output should be a dictionary with the following structure:
-        ```
-        {
-            "type": "classification" | "regression" | "multi_output",
-            "output": raw_output,
-            "labels": label_output (only for classification),
-            "output_info": {
-                "names": [...],   # optional, each output feature name
-                "dtype": [...]    # optional, output data type
-            }
-        }
-        ```
-        
-        One example of a valid output for a classification model could be:
-        ```
-        {
-            "type": "classification",
-            "output": 1, # The predicted class index (e.g., 1 out of [0.1, 0.7, 0.2])
-            "labels": ["cat", "dog", "mouse"],
-            "output_info": {
-                "names": ["species"],
-                "dtype": ["str"]
-            }
-        }
-        ```
-        """
-        
-        pass
-    
+
     @abstractmethod
     def get_features(self) -> dict:
         """
-        Returns a dictionary containing the input and output features of the model, and some metadata for the training report.
-        
-        The dictionary should have the following structure:
-        ```
-        {
-            "input_features": [...],   # list of input feature names
-            "output_features": [...],  # list of output feature names
-            "metadata": {
-                "type": "regression" | "classification",
-                "units": "..." # units of the output features
-                "labels": [...] # labels for the output features (only for classification)
-            }
-        }
-        ```
+        Diccionario con al menos ``input_features`` y ``output_features`` (listas de nombres).
+        Opcionalmente ``metadata`` con ``type`` (``regression`` | ``classification``),
+        ``labels`` (clasificación), ``units``, etc., para informes y para formatear predicciones.
         """
         pass
