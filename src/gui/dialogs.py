@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
@@ -119,3 +121,156 @@ class OptionDialog(BaseDialog):
 
     def __init__(self, parent, title: str, message: str):
         super().__init__(parent, title)
+
+
+class FederatedRoundsDialog(BaseDialog):
+    """
+    Pide el número de rondas federadas.
+
+    Si pasas ``on_confirm``, al pulsar *Iniciar* se cierra el diálogo y se programa
+    ``on_confirm(rondas)`` en el hilo principal (sin ``wait_window`` en el llamador).
+    Si no, usa ``result`` y el patrón clásico con ``wait_window``.
+    """
+
+    def __init__(
+        self,
+        parent,
+        default_rounds: int = 5,
+        on_confirm=None,
+    ):
+        super().__init__(parent, "Entrenamiento federado")
+        self.result = None  # int si OK, None si cancelar (solo sin on_confirm)
+        self._on_confirm = on_confirm
+
+        tk.Label(
+            self,
+            text=(
+                "Indica cuántas rondas federadas ejecutará el servidor (FedAvg).\n"
+                "En cada ronda se entrenan todos los nodos del proyecto y se agregan los pesos."
+            ),
+            bg=utils.BG_COLOR,
+            wraplength=400,
+            justify="left",
+        ).pack(padx=16, pady=(16, 8))
+
+        row = tk.Frame(self, bg=utils.BG_COLOR)
+        row.pack(pady=8)
+        tk.Label(row, text="Rondas:", bg=utils.BG_COLOR).pack(side="left", padx=(0, 8))
+        self._rounds_var = tk.IntVar(value=max(1, default_rounds))
+        tk.Spinbox(
+            row,
+            from_=1,
+            to=500,
+            textvariable=self._rounds_var,
+            width=8,
+        ).pack(side="left")
+
+        btn_row = tk.Frame(self, bg=utils.BG_COLOR)
+        btn_row.pack(pady=16)
+
+        def _ok():
+            try:
+                v = int(self._rounds_var.get())
+            except (tk.TclError, ValueError):
+                v = 1
+            v = max(1, min(500, v))
+            self.result = v
+            self.destroy()
+            if self._on_confirm is not None:
+                root = parent.winfo_toplevel()
+                root.after(0, lambda n=v: self._on_confirm(n))
+
+        def _cancel():
+            self.result = None
+            self.destroy()
+
+        ttk.Button(btn_row, text="Iniciar", style=utils.SEC_TBUTTON_STYLE, command=_ok).pack(
+            side="left", padx=6
+        )
+        ttk.Button(btn_row, text="Cancelar", style=utils.SEC_TBUTTON_STYLE, command=_cancel).pack(
+            side="left", padx=6
+        )
+        self.center_dialog()
+
+
+class ProvisionalPredictDialog(BaseDialog):
+    """
+    Entrada provisional de valores para inferencia (lista separada por comas).
+
+    Al confirmar, llama ``on_confirm(valores: list[float])`` en el hilo principal
+    tras cerrar el diálogo (mismo patrón que :class:`FederatedRoundsDialog`).
+    """
+
+    def __init__(
+        self,
+        parent,
+        feature_names: list[str],
+        default_line: str = "",
+        on_confirm=None,
+    ):
+        super().__init__(parent, "Predicción (provisional)")
+        self._on_confirm = on_confirm
+        self._feature_names = feature_names
+
+        hint = (
+            "Introduce los valores de entrada en el mismo orden que las columnas del proyecto, "
+            "separados por comas (números decimales con punto)."
+        )
+        if feature_names:
+            hint += "\n\nColumnas: " + ", ".join(feature_names)
+
+        tk.Label(
+            self,
+            text=hint,
+            bg=utils.BG_COLOR,
+            wraplength=420,
+            justify="left",
+        ).pack(padx=16, pady=(16, 8))
+
+        self._var = tk.StringVar(value=default_line or "")
+        entry = ttk.Entry(self, textvariable=self._var, width=52)
+        entry.pack(padx=16, pady=8)
+        entry.focus_set()
+
+        btn_row = tk.Frame(self, bg=utils.BG_COLOR)
+        btn_row.pack(pady=16)
+
+        def _ok():
+            raw = self._var.get().strip()
+            if not raw:
+                InfoDialog(self, "Entrada vacía", "Escribe al menos un valor.", "warning")
+                return
+            parts = [p.strip() for p in raw.split(",") if p.strip()]
+            try:
+                vals = [float(p) for p in parts]
+            except ValueError:
+                InfoDialog(
+                    self,
+                    "Formato inválido",
+                    "Cada valor debe ser un número (usa el punto decimal).",
+                    "error",
+                )
+                return
+            if self._feature_names and len(vals) != len(self._feature_names):
+                InfoDialog(
+                    self,
+                    "Cantidad incorrecta",
+                    f"Se esperaban {len(self._feature_names)} valores; hay {len(vals)}.",
+                    "warning",
+                )
+                return
+            self.destroy()
+            if self._on_confirm is not None:
+                root = parent.winfo_toplevel()
+                root.after(0, lambda v=list(vals): self._on_confirm(v))
+
+        def _cancel():
+            self.destroy()
+
+        ttk.Button(btn_row, text="Predecir", style=utils.SEC_TBUTTON_STYLE, command=_ok).pack(
+            side="left", padx=6
+        )
+        ttk.Button(btn_row, text="Cancelar", style=utils.SEC_TBUTTON_STYLE, command=_cancel).pack(
+            side="left", padx=6
+        )
+        self.center_dialog()

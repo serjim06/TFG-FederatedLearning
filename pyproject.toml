@@ -5,7 +5,7 @@ description = "TFG 2025"
 requires-python = ">=3.12, <=3.13"
 authors = [{ name = "Sergio" }]
 dependencies = [
-    "flwr",
+    "flwr[simulation]",
     "pillow",
     "torch",
     "reportlab",
