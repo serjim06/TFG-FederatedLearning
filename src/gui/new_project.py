@@ -46,11 +46,19 @@ class ScrollableNodesFrame(ttk.Frame):
             )
         )
 
-        self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
+        self._inner_win = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+
+    def _on_canvas_configure(self, event):
+        if event.widget is not self.canvas:
+            return
+        w = self.canvas.winfo_width()
+        if w > 1:
+            self.canvas.itemconfigure(self._inner_win, width=w)
 
 
 FORM_LABEL = "Form.TLabel"
@@ -67,6 +75,7 @@ class NewProject(ttk.Frame):
         self.grid(row=grid_row, column=0, sticky="nsew")
 
         self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
         self.project = project
         self.ruta = None
         self.input_features = []
@@ -579,20 +588,14 @@ class SeeProjectDialog(tk.Toplevel):
     def _build_modify_ui(self, project_id):
         for widget in self.winfo_children():
             widget.destroy()
+        for r in range(20):
+            self.rowconfigure(r, weight=0)
         self.project = dbcon.command("select", "projects", {"id": project_id})[0]
-        
-        
-                
-        dbcon.command("update", "projects", {"id": project_id, 
-                                             "unconfirmed_results": 
-                                                 json.dumps([{"node": json.loads(self.project["nodes"])[0],"data":{"feature1":"hola","feature2":"hola","label":"adios"}}])})
-            
-        print("AÑADIDO CONFIRMACIÓN DE PRUEBA")
-            
-        
+
         self.title(f"Modificar Proyecto: {self.project['name']}")
 
-        self.unconfirmed = json.loads(self.project["unconfirmed_results"])
+        raw_pending = self.project.get("unconfirmed_results") or "[]"
+        self.unconfirmed = json.loads(raw_pending) if isinstance(raw_pending, str) else raw_pending
 
         grid_row = 0
         if self.unconfirmed:
