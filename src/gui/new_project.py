@@ -20,6 +20,15 @@ from src.gui.confirm_results import ConfirmResultsFrame
 from src.utils import utils
 from src.gui import dialogs
 
+# Opciones alineadas con ``src.models.node._criterion`` (PyTorch).
+_LOSS_OPTIONS_CLASSIFICATION = (
+    "categorical_crossentropy",
+    "sparse_categorical_crossentropy",
+    "binary_crossentropy",
+)
+_LOSS_OPTIONS_REGRESSION = ("mean_squared_error",)
+
+
 class ScrollableNodesFrame(ttk.Frame):
     def __init__(self, parent, height=150):
         super().__init__(parent)
@@ -118,8 +127,58 @@ class NewProject(ttk.Frame):
         self.model_select_btn = ttk.Button(self.model_frame, text="Seleccionar", command=self._select_model, style="Sec.TButton")
         self.model_select_btn.pack(side="right", padx=10, pady=5)
 
-       # ---------- Parámetros ----------
-       
+        # ---------- Tipo de tarea (clasificación / regresión) ----------
+        self.task_type_label = ttk.Label(
+            self.scrollable_frame.inner,
+            text="Tipo de tarea:",
+            background="#eef4fb",
+            cursor="question_arrow",
+        )
+        self.task_type_label.grid(row=row, column=0, sticky="w", pady=(0, 0))
+        row += 1
+
+        self.task_type_cb = ttk.Combobox(
+            self.scrollable_frame.inner,
+            values=["classification", "regression"],
+            state="readonly",
+        )
+        self.task_type_cb.set("classification")
+        self.task_type_cb.grid(row=row, column=0, sticky="ew", pady=(0, 8))
+        self.task_type_cb.bind("<<ComboboxSelected>>", self._on_task_type_selected)
+        row += 1
+
+        ToolTip(
+            self.task_type_label,
+            text="Clasificación: salida discreta (etiquetas). Regresión: salida numérica continua.\n"
+            "Si el modelo declara el tipo en get_features() (metadata.type), se rellena solo.",
+        )
+
+        # ---------- Función de pérdida ----------
+        self.loss_label = ttk.Label(
+            self.scrollable_frame.inner,
+            text="Función de pérdida:",
+            background="#eef4fb",
+            cursor="question_arrow",
+        )
+        self.loss_label.grid(row=row, column=0, sticky="w", pady=(0, 0))
+        row += 1
+
+        self.metrics_cb = ttk.Combobox(
+            self.scrollable_frame.inner,
+            values=list(_LOSS_OPTIONS_CLASSIFICATION),
+            state="readonly",
+        )
+        self.metrics_cb.set("categorical_crossentropy")
+        self.metrics_cb.grid(row=row, column=0, sticky="ew", pady=(0, 10))
+        row += 1
+
+        ToolTip(
+            self.loss_label,
+            text="Función de pérdida compatible con el tipo de tarea (implementación PyTorch en el nodo).",
+        )
+
+        # ---------- Parámetros ----------
+
         self.params_button = tk.Label(
             self.scrollable_frame.inner, text="▶ Parámetros",
             bg="#eef4fb",
@@ -295,24 +354,6 @@ class NewProject(ttk.Frame):
         self.learning_rate.grid(row=15, column=0, sticky="ew", pady=(0, 5))
         
         ToolTip(self.learning_rate_label, text="Tasa de aprendizaje que determina el tamaño de los pasos que da el optimizador al actualizar los pesos del modelo durante el entrenamiento.")
-        
-        # ---------- Métricas ----------
-        self.metrics_label = ttk.Label(self.scrollable_frame.inner, text="Métricas:", background="#eef4fb", cursor="question_arrow")
-        self.metrics_label.grid(
-            row=row, column=0, sticky="w", pady=(10, 0)
-        )
-        row += 1
-
-        self.metrics_cb = ttk.Combobox(
-            self.scrollable_frame.inner ,
-            values=["categorical_crossentropy", "sparse_categorical_crossentropy", "binary_crossentropy", "mean_squared_error"],
-            state="readonly"
-        )
-        self.metrics_cb.set("categorical_crossentropy")
-        self.metrics_cb.grid(row=row, column=0, sticky="ew")
-        row += 1
-        
-        ToolTip(self.metrics_label, text="Métrica que se utilizará para evaluar el rendimiento del modelo entrenado.")
 
        # ---------- Nodos ----------
         ttk.Label(self.scrollable_frame.inner, text="Nodos:", background="#eef4fb").grid(
@@ -368,8 +409,11 @@ class NewProject(ttk.Frame):
                 nombre_modulo = os.path.basename(ruta_inicial)
                 self.model_name.set(nombre_modulo)
                 
-                self.input_features, self.output_features = self._load_features(clase)
-                
+                self.input_features, self.output_features, suggested_task = self._load_features(clase)
+                if suggested_task:
+                    self.task_type_cb.set(suggested_task)
+                self._sync_loss_options_for_task()
+
                 self.ruta = self._copy_model(ruta_inicial)
                 self.ruta = Path(self.ruta).as_posix()
         except Exception as e:
@@ -400,10 +444,42 @@ class NewProject(ttk.Frame):
             
         if not isinstance(features, dict) or not required_keys.issubset(features.keys()) or not all(isinstance(features[key], list) for key in required_keys):
             raise ValueError("El método get_features() debe retornar un diccionario con las claves 'input_features' y 'output_features', cuyos valores deben ser listas de nombres de características.")
-            
-        return features["input_features"], features["output_features"]    
-                   
-    
+
+        suggested = None
+        meta = features.get("metadata")
+        if isinstance(meta, dict):
+            suggested = self._coerce_task_type(meta.get("type"))
+        if suggested is None:
+            suggested = self._coerce_task_type(features.get("type"))
+
+        return features["input_features"], features["output_features"], suggested
+
+    @staticmethod
+    def _coerce_task_type(raw) -> str | None:
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        t = raw.strip().lower()
+        if t in ("regression", "regresssion"):
+            return "regression"
+        if t == "classification":
+            return "classification"
+        return None
+
+    def _sync_loss_options_for_task(self) -> None:
+        task = self.task_type_cb.get()
+        opts = (
+            list(_LOSS_OPTIONS_REGRESSION)
+            if task == "regression"
+            else list(_LOSS_OPTIONS_CLASSIFICATION)
+        )
+        self.metrics_cb.configure(values=opts)
+        cur = self.metrics_cb.get()
+        if cur not in opts:
+            self.metrics_cb.set(opts[0])
+
+    def _on_task_type_selected(self, _event=None) -> None:
+        self._sync_loss_options_for_task()
+
     def _load_project_data(self):
         mp = (self.project.get("model_path") or "").strip()
         self.ruta = Path(mp).as_posix() if mp else ""
@@ -430,8 +506,18 @@ class NewProject(ttk.Frame):
         self.fraction_evaluate.insert(0, str(parameters.get("fraction_evaluate", 0.5)))
         
         self.aggregation_cb.set(self.project.get("aggregation_strategy", "fed_avg"))
-        self.metrics_cb.set(self.project.get("metrics", "categorical_crossentropy"))
-        
+
+        metrics_col = self.project.get("metrics", "categorical_crossentropy")
+        tt = parameters.get("task_type")
+        if tt not in ("regression", "classification"):
+            tt = "regression" if metrics_col == "mean_squared_error" else "classification"
+        self.task_type_cb.set(tt)
+        self._sync_loss_options_for_task()
+        self.metrics_cb.set(metrics_col)
+        opts = list(self.metrics_cb.cget("values"))
+        if self.metrics_cb.get() not in opts and opts:
+            self.metrics_cb.set(opts[0])
+
         initial_nodes = json.loads(self.project["nodes"])
         
         self.model_select_btn.pack_forget()
@@ -471,6 +557,7 @@ class NewProject(ttk.Frame):
         return {
             "name": self.name_entry.get("1.0", "end-1c").strip(),
             "description": self.description_text.get("1.0", "end-1c").strip(),
+            "task_type": self.task_type_cb.get(),
             "parameters": {
                 "optimizer": self.optimizer_cb.get(),
                 "learning_rate": float(self.learning_rate.get()),
@@ -478,7 +565,7 @@ class NewProject(ttk.Frame):
                 "validation_split": float(self.validation_split.get()),
                 "batch_size": int(self.batch_size.get()),
                 "fraction_fit": float(self.fraction_fit.get()),
-                "fraction_evaluate": float(self.fraction_evaluate.get())
+                "fraction_evaluate": float(self.fraction_evaluate.get()),
             },
             "aggregation_strategy": self.aggregation_cb.get(),
             "initial_nodes": [node_id for node_id, var in self.node_vars.items() if var.get()],
@@ -545,7 +632,9 @@ class NewProjectDialog(tk.Toplevel):
                 "model_path": data["model_path"],
                 "input_features": input_features_str,
                 "output_features": output_features_str,
-                "unconfirmed_results": json.dumps([])
+                "unconfirmed_results": json.dumps([]),
+                "type": data["task_type"],
+
             })
             project = dbcon.command("select", "projects", {"name": data["name"], "uid": self.user_id})
             
