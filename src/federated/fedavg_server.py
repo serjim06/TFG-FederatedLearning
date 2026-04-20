@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 import numpy as np
@@ -40,6 +41,33 @@ def _loader_seed(server_round: int, partition_index: int) -> int:
     train/val de cada cliente coincida con el usado al entrenar esa ronda.
     """
     return int(server_round) * 1000 + int(partition_index)
+
+
+def _print_client_dataset(
+    phase: str,
+    partition_index: int,
+    nid: bytes,
+    path: Path | str,
+    server_round: int,
+) -> None:
+    """
+    Provisional: traza qué CSV usa cada cliente simulado.
+
+    El nombre ``dataset_0.csv`` es la ronda de datos del *proyecto* (``training_round``);
+    cada **nodo** tiene su propia carpeta ``database/datasets/node_<uuid>/``.
+
+    Ray puede deduplicar líneas parecidas en el log; para ver cada línea:
+    ``set RAY_DEDUP_LOGS=0`` (Windows) antes de ejecutar.
+    """
+    ns = str(uuid.UUID(bytes=nid))
+    ap = Path(path).resolve()
+    # Incluir carpeta explícita: varios nodos comparten nombre de archivo pero no la ruta.
+    print(
+        f"[Flower] {phase} | partición={partition_index} | nodo={ns} | "
+        f"ronda_servidor={server_round} | carpeta_nodo={ap.parent.name} | "
+        f"archivo={ap.name} | ruta={ap}",
+        flush=True,
+    )
 
 
 def _state_dict_to_ndarrays(sd: dict[str, torch.Tensor]) -> list[np.ndarray]:
@@ -187,6 +215,7 @@ class _FederatedNumPyClient(NumPyClient):
         crit = nm._criterion(self.metrics, self.task)
 
         path = nm._dataset_csv_path(nid, self.project_row)
+        _print_client_dataset("fit", self.partition_index, nid, path, rnd)
         X, y, _enc = nm._load_xy_from_csv(
             path,
             self.in_features,
@@ -233,6 +262,7 @@ class _FederatedNumPyClient(NumPyClient):
         crit = nm._criterion(self.metrics, self.task)
 
         path = nm._dataset_csv_path(nid, self.project_row)
+        _print_client_dataset("evaluate", self.partition_index, nid, path, rnd)
         X, y, _enc = nm._load_xy_from_csv(
             path,
             self.in_features,
