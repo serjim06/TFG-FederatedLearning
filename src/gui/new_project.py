@@ -20,7 +20,6 @@ from src.gui.confirm_results import ConfirmResultsFrame
 from src.utils import utils
 from src.gui import dialogs
 
-# Opciones alineadas con ``src.models.node._criterion`` (PyTorch).
 _LOSS_OPTIONS_CLASSIFICATION = (
     "categorical_crossentropy",
     "sparse_categorical_crossentropy",
@@ -127,7 +126,7 @@ class NewProject(ttk.Frame):
         self.model_select_btn = ttk.Button(self.model_frame, text="Seleccionar", command=self._select_model, style="Sec.TButton")
         self.model_select_btn.pack(side="right", padx=10, pady=5)
 
-        # ---------- Tipo de tarea (clasificación / regresión) ----------
+        # ---------- Tipo de tarea ----------
         self.task_type_label = ttk.Label(
             self.scrollable_frame.inner,
             text="Tipo de tarea:",
@@ -188,14 +187,12 @@ class NewProject(ttk.Frame):
         self.params_button.grid(row=row, column=0, sticky="w", pady=(5, 5))
         row += 1
 
-        # Fila RESERVADA para params_frame
         self.params_frame = ttk.Frame(self.scrollable_frame.inner)
         self.params_frame.columnconfigure(0, weight=1)
         self.params_frame.grid(row=row, column=0, sticky="ew", padx=15)
         row += 1
 
         # --- Optimizer ---
-
         self.opt = ttk.Label(self.params_frame, text="Optimizer:", background="#eef4fb", cursor="question_arrow")
         self.opt.grid(
             row=0, column=0, sticky="w"
@@ -355,7 +352,7 @@ class NewProject(ttk.Frame):
         
         ToolTip(self.learning_rate_label, text="Tasa de aprendizaje que determina el tamaño de los pasos que da el optimizador al actualizar los pesos del modelo durante el entrenamiento.")
 
-       # ---------- Nodos ----------
+        # ---------- Nodos ----------
         ttk.Label(self.scrollable_frame.inner, text="Nodos:", background="#eef4fb").grid(
             row=row, column=0, sticky="w", pady=(10, 0)
         )
@@ -608,7 +605,6 @@ class NewProjectDialog(tk.Toplevel):
 
 
     def _on_ok(self):
-        # aquí luego implementas get_data()
         try:
             data = self.form.get_data()
         except ValueError as e:
