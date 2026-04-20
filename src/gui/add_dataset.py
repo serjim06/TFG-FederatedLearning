@@ -153,6 +153,21 @@ class AddDatasetDialog(BaseDialog):
 
         self._csv_path = tk.StringVar(value="")
 
+        btn_row = tk.Frame(self, bg=utils.BG_COLOR)
+        ttk.Button(
+            btn_row,
+            text="Añadir",
+            style=utils.SEC_TBUTTON_STYLE,
+            command=self._on_add,
+        ).pack(side="left", padx=6)
+        ttk.Button(
+            btn_row,
+            text="Cancelar",
+            style=utils.SEC_TBUTTON_STYLE,
+            command=self.destroy,
+        ).pack(side="left", padx=6)
+        btn_row.pack(side="bottom", pady=16)
+
         tk.Label(
             self,
             text=(
@@ -163,10 +178,10 @@ class AddDatasetDialog(BaseDialog):
             background=utils.BG_COLOR,
             wraplength=420,
             justify="left",
-        ).pack(pady=(12, 8), padx=16)
+        ).pack(pady=(12, 8), padx=16, fill="x")
 
         form = tk.Frame(self, bg=utils.BG_COLOR)
-        form.pack(fill="x", padx=16, pady=4)
+        form.pack(fill="both", expand=True, padx=16, pady=4)
 
         tk.Label(form, text="Nodo:", background=utils.BG_COLOR).grid(row=0, column=0, sticky="w", pady=4)
         self._node_var = tk.StringVar(value=self.nodes[0] if self.nodes else "")
@@ -181,43 +196,48 @@ class AddDatasetDialog(BaseDialog):
         form.columnconfigure(1, weight=1)
 
         tk.Label(form, text="Archivo CSV:", background=utils.BG_COLOR).grid(row=1, column=0, sticky="nw", pady=4)
-        file_row = tk.Frame(form, bg=utils.BG_COLOR)
-        file_row.grid(row=1, column=1, sticky="ew", pady=4)
-        file_row.columnconfigure(0, weight=1)
+        self._file_row = tk.Frame(form, bg=utils.BG_COLOR)
+        self._file_row.grid(row=1, column=1, sticky="ew", pady=4)
+        self._file_row.columnconfigure(0, weight=1)
+        self._file_row.columnconfigure(1, weight=0)
 
         self._path_label = tk.Label(
-            file_row,
+            self._file_row,
             textvariable=self._csv_path,
             background=utils.BG_COLOR,
             anchor="w",
-            wraplength=320,
+            wraplength=1,
             justify="left",
         )
-        self._path_label.grid(row=0, column=0, sticky="ew")
+        self._path_label.grid(row=0, column=0, sticky="nsew")
 
-        ttk.Button(
-            file_row,
+        self._browse_btn = ttk.Button(
+            self._file_row,
             text="Examinar…",
             style=utils.SEC_TBUTTON_STYLE,
             command=self._browse_csv,
-        ).grid(row=0, column=1, padx=(8, 0))
+        )
+        self._browse_btn.grid(row=0, column=1, padx=(8, 0), sticky="ns")
 
-        btn_row = tk.Frame(self, bg=utils.BG_COLOR)
-        btn_row.pack(pady=16)
-        ttk.Button(
-            btn_row,
-            text="Añadir",
-            style=utils.SEC_TBUTTON_STYLE,
-            command=self._on_add,
-        ).pack(side="left", padx=6)
-        ttk.Button(
-            btn_row,
-            text="Cancelar",
-            style=utils.SEC_TBUTTON_STYLE,
-            command=self.destroy,
-        ).pack(side="left", padx=6)
+        self._file_row.bind("<Configure>", self._update_path_wraplength)
+        self._csv_path.trace_add("write", lambda *_: self.after_idle(self._update_path_wraplength))
 
         self.center_dialog()
+        self.after_idle(self._update_path_wraplength)
+
+    def _update_path_wraplength(self, _event=None):
+        self.update_idletasks()
+        try:
+            fw = self._file_row.winfo_width()
+            if fw <= 1:
+                return
+            bw = self._browse_btn.winfo_width() or 90
+            pad = 16
+            wl = max(48, fw - bw - pad)
+            if wl != self._path_label.cget("wraplength"):
+                self._path_label.configure(wraplength=wl)
+        except tk.TclError:
+            pass
 
     def _browse_csv(self):
         path = filedialog.askopenfilename(
@@ -229,49 +249,68 @@ class AddDatasetDialog(BaseDialog):
             self._csv_path.set(path)
 
     def _on_add(self):
-        if not self.nodes:
-            dialogs.InfoDialog(self, "Información", "No hay nodos en el proyecto.", "warning")
-            return
-
-        node = self._node_var.get().strip()
-        if not node:
-            dialogs.InfoDialog(self, "Información", "Selecciona un nodo.", "warning")
-            return
-
-        src = self._csv_path.get().strip()
-        if not src:
-            dialogs.InfoDialog(self, "Información", "Selecciona un archivo CSV.", "warning")
-            return
-
-        if not src.lower().endswith(".csv"):
-            dialogs.InfoDialog(self, "Error", "El archivo debe tener extensión .csv.", "error")
-            return
-
-        src_path = Path(src)
-        if not src_path.is_file():
-            dialogs.InfoDialog(self, "Error", "No se encontró el archivo indicado.", "error")
-            return
-
-        data_rows, err = validate_csv_for_project(
-            src_path, self._in_features, self._out_features
-        )
-        if err:
-            dialogs.InfoDialog(self, "Dataset no válido", err, "error")
-            return
-
+        parent = self.master
+        prev_self = self.cget("cursor") or ""
+        prev_parent = (parent.cget("cursor") or "") if parent is not None else ""
+        self.configure(cursor="watch")
+        if parent is not None:
+            parent.configure(cursor="watch")
+        self.update()
         try:
-            dest_path = _get_last_dataset_path(
-                node, self._cur_round, self._in_features, self._out_features
-            )
-            _append_data_rows(dest_path, data_rows)
-        except OSError as e:
-            dialogs.InfoDialog(self, "Error", f"No se pudo escribir el dataset: {e}", "error")
-            return
+            if not self.nodes:
+                dialogs.InfoDialog(self, "Información", "No hay nodos en el proyecto.", "warning")
+                return
 
-        dialogs.InfoDialog(
-            self.master,
-            "Confirmación",
-            f"Datos añadidos al dataset del nodo {node}.",
-            "info",
-        )
-        self.destroy()
+            node = self._node_var.get().strip()
+            if not node:
+                dialogs.InfoDialog(self, "Información", "Selecciona un nodo.", "warning")
+                return
+
+            src = self._csv_path.get().strip()
+            if not src:
+                dialogs.InfoDialog(self, "Información", "Selecciona un archivo CSV.", "warning")
+                return
+
+            if not src.lower().endswith(".csv"):
+                dialogs.InfoDialog(self, "Error", "El archivo debe tener extensión .csv.", "error")
+                return
+
+            src_path = Path(src)
+            if not src_path.is_file():
+                dialogs.InfoDialog(self, "Error", "No se encontró el archivo indicado.", "error")
+                return
+
+            data_rows, err = validate_csv_for_project(
+                src_path, self._in_features, self._out_features
+            )
+            if err:
+                dialogs.InfoDialog(self, "Dataset no válido", err, "error")
+                return
+
+            try:
+                dest_path = _get_last_dataset_path(
+                    node, self._cur_round, self._in_features, self._out_features
+                )
+                _append_data_rows(dest_path, data_rows)
+            except OSError as e:
+                dialogs.InfoDialog(self, "Error", f"No se pudo escribir el dataset: {e}", "error")
+                return
+
+            dialogs.InfoDialog(
+                self.master,
+                "Confirmación",
+                f"Datos añadidos al dataset del nodo {node}.",
+                "info",
+            )
+            self.destroy()
+        finally:
+            try:
+                if self.winfo_exists():
+                    self.configure(cursor=prev_self)
+            except tk.TclError:
+                pass
+            try:
+                if parent is not None and parent.winfo_exists():
+                    parent.configure(cursor=prev_parent)
+            except tk.TclError:
+                pass
