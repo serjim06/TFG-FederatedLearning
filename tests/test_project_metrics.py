@@ -5,7 +5,13 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.gui.project_metrics import ProjectMetricsDialog, get_metrics_per_round, get_datasets_changes, get_time_per_round
+from src.gui.project_metrics import (
+    ProjectMetricsDialog,
+    get_metrics_per_round,
+    get_regression_metrics_bundle,
+    get_datasets_changes,
+    get_time_per_round,
+)
 
 def test_classification():
     filepath = Path(__file__).parent / "sample_results.json"
@@ -38,7 +44,8 @@ def test_regression():
     with open(filepath, "r", encoding="utf-8") as f:
         training_data = json.load(f)
 
-    metrics, y_true_total, y_pred_total = get_metrics_per_round(training_data, "regression")
+    metrics = get_metrics_per_round(training_data, "regression")
+    _, y_true_total, y_pred_total = get_regression_metrics_bundle(training_data)
     time_per_round = get_time_per_round(training_data)
     datasets_changes = get_datasets_changes(["node1", "node2"])
 

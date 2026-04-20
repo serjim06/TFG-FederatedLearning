@@ -13,7 +13,8 @@ default_parameters = {
     "validation_split": 0.2,
     "batch_size": 32,
     "fraction_fit": 0.8,
-    "fraction_evaluate": 0.5
+    "fraction_evaluate": 0.5,
+    "task_type": "classification",
 }
 
 class Project:
@@ -38,11 +39,12 @@ class Project:
                 - "fed_avg": Federated Averaging
                 - "fed_prox": Federated Proximal
             initial_nodes (list): project initial nodes
-            metrics (string): project loss metrics. Possible values:
-                    - "categorical_crossentropy". Default value.
+            metrics (string): función de pérdida del proyecto. Posibles valores:
+                    - "categorical_crossentropy". Valor por defecto (clasificación).
                     - "sparse_categorical_crossentropy"
                     - "binary_crossentropy"
-                    - "mean_squared_error"
+                    - "mean_squared_error" (regresión)
+                task_type en parameters: "classification" | "regression" (prioridad sobre metadata del modelo).
         """
         self.id = id
         self.uid = uid

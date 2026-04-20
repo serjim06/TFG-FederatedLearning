@@ -351,29 +351,71 @@ def generate_regression_report(story, train_id, strategy, total_clients, results
     story = add_training_head(story, idx, train_id, strategy, total_clients, styles)
 
     for result in results_per_round:
-      stats = []
-
-      story.append(Paragraph(f"Ronda {result['round']}", styles["Heading3"]))
-      stats.append(ListItem(Paragraph(f"Pérdida global: {result['global_loss']}", styles["BodyText"])))
-      total_y_true = []
-      total_y_pred = []
-      for c in result["client_stats"]:
-        total_y_true.extend(c["y_true"])
-        total_y_pred.extend(c["y_pred"])
-      stats.append(ListItem(Paragraph(f"Error absoluto medio: {mean_absolute_error(total_y_true, total_y_pred)}")))
-      stats.append(ListItem(Paragraph(f"Puntuación R<sup>2</sup>: {r2_score(total_y_true, total_y_pred)}")))
-      story.append(ListFlowable(stats, bulletType="bullet"))
+        stats = []
+        story.append(Paragraph(f"Ronda {result['round']}", styles["Heading3"]))
+        stats.append(
+            ListItem(Paragraph(f"Pérdida global: {result['global_loss']}", styles["BodyText"]))
+        )
+        cs = result.get("client_stats") or []
+        has_y = bool(cs and isinstance(cs[0], dict) and "y_true" in cs[0])
+        if has_y:
+            total_y_true: list[float] = []
+            total_y_pred: list[float] = []
+            for c in cs:
+                total_y_true.extend(c["y_true"])
+                total_y_pred.extend(c["y_pred"])
+            stats.append(
+                ListItem(
+                    Paragraph(
+                        f"Error absoluto medio: {mean_absolute_error(total_y_true, total_y_pred)}",
+                        styles["BodyText"],
+                    )
+                )
+            )
+            stats.append(
+                ListItem(
+                    Paragraph(
+                        f"Puntuación R<sup>2</sup>: {r2_score(total_y_true, total_y_pred)}",
+                        styles["BodyText"],
+                    )
+                )
+            )
+        else:
+            stats.append(
+                ListItem(
+                    Paragraph(
+                        "(Métricas MAE/R² solo en la última ronda con detalle por nodo)",
+                        styles["BodyText"],
+                    )
+                )
+            )
+        story.append(ListFlowable(stats, bulletType="bullet"))
     story.append(Spacer(1, 6))
 
     story.append(Paragraph("Conclusiones del entrenamiento", styles["Heading3"]))
     story.append(Spacer(1, 6))
-    story.append(Paragraph(f"Tiempo total del entrenamiento: {final_metrics['total_time_seconds']} segundos", styles["BodyText"]))
+    story.append(
+        Paragraph(
+            f"Tiempo total del entrenamiento: {final_metrics['total_time_seconds']} segundos",
+            styles["BodyText"],
+        )
+    )
     story.append(Spacer(1, 6))
-    story.append(get_scatter_plot(total_y_true, total_y_pred))
-    story.append(Spacer(1, 6))
-    story.append(get_residuals_histogram(total_y_true, total_y_pred))
-    story.append(Spacer(1, 6))
-    
+
+    yt_final = list(final_metrics.get("y_true_final") or [])
+    yp_final = list(final_metrics.get("y_pred_final") or [])
+    if not yt_final and results_per_round:
+        last = results_per_round[-1]
+        for c in last.get("client_stats") or []:
+            if isinstance(c, dict) and "y_true" in c:
+                yt_final.extend(c["y_true"])
+                yp_final.extend(c["y_pred"])
+    if yt_final and yp_final:
+        story.append(get_scatter_plot(yt_final, yp_final))
+        story.append(Spacer(1, 6))
+        story.append(get_residuals_histogram(yt_final, yp_final))
+        story.append(Spacer(1, 6))
+
     return story
 
 
@@ -431,11 +473,12 @@ def get_precision_recall_f1score(client, results_per_round, classes):
     confusion_matrix = [[0 for _ in range(len(classes))] for _ in range(len(classes))]
 
     for result in results_per_round:
-        for c in result["client_stats"]: 
-            if c["client_id"] == client:
-                for i in range(len(classes)):
-                    for j in range(len(classes)):
-                        confusion_matrix[i][j] += c["confusion_matrix"][i][j]
+        for c in result.get("client_stats") or []:
+            if c.get("client_id") != client or "confusion_matrix" not in c:
+                continue
+            for i in range(len(classes)):
+                for j in range(len(classes)):
+                    confusion_matrix[i][j] += c["confusion_matrix"][i][j]
     
     precision = {}
     recall = {}

@@ -40,39 +40,65 @@ Clase para mostrar las métricas del proyecto:
 """
 
 def get_metrics_per_round(training_data, project_type):
+    """
+    Lista de dicts por ronda federada (loss, participation, f1 o r2, etc.).
+
+    Para regresión, ``_get_regression_metrics`` también devuelve agregados y_true/y_pred;
+    usa ``get_regression_metrics_bundle`` si los necesitas para gráficos.
+    """
     if project_type == "classification":
         return _get_classification_metrics(training_data)
-    else:
-        return _get_regression_metrics(training_data)
+    metrics, _, _ = _get_regression_metrics(training_data)
+    return metrics
+
+
+def get_regression_metrics_bundle(training_data):
+    """Métricas por ronda y vectores agregados para scatter (solo regresión)."""
+    return _get_regression_metrics(training_data)
 
 def _get_classification_metrics(training_data):
     metrics = []
     for training in training_data:
-        total_clients = len(training["config"]["total_clients"])
+        total_clients = max(len(training["config"]["total_clients"]), 1)
         for r in training["results_per_round"]:
             loss = r["global_loss"]
-            acc = r["global_accuracy"]
-            y_true = []
-            y_pred = []
-            for client in r["client_stats"]:
-                matrix = np.array(client["confusion_matrix"])
+            acc = r.get("global_accuracy", 0.0)
+            cs = r.get("client_stats") or []
+            part = float(r.get("participating_clients", len(cs))) / total_clients
+            has_cm = bool(
+                cs
+                and isinstance(cs[0], dict)
+                and "confusion_matrix" in cs[0]
+            )
+            if has_cm:
+                y_true: list[int] = []
+                y_pred: list[int] = []
+                for client in cs:
+                    matrix = np.array(client["confusion_matrix"])
+                    for i in range(matrix.shape[0]):
+                        for j in range(matrix.shape[1]):
+                            amount = matrix[i, j]
+                            y_true.extend([i] * amount)
+                            y_pred.extend([j] * amount)
+                f1 = float(f1_score(y_true, y_pred, average="weighted"))
+            else:
+                f1 = float("nan")
 
-                for i in range(matrix.shape[0]):
-                    for j in range(matrix.shape[1]):
-                        amount = matrix[i, j]
-                        y_true.extend([i] * amount)
-                        y_pred.extend([j] * amount)
-            
-            f1 = f1_score(y_true, y_pred, average='weighted')
-
-            metrics.append({
-                "loss":loss,
-                "accuracy": acc,
-                "f1": f1,
-                "participation": len(r["client_stats"])/total_clients
-            })
+            metrics.append(
+                {
+                    "loss": loss,
+                    "accuracy": acc,
+                    "f1": f1,
+                    "participation": part,
+                }
+            )
 
     return metrics
+
+
+def _round_indices_for_metrics(metrics: list) -> list[int]:
+    """Índices de ronda 1..n (las entradas de métricas por ronda no llevan ``round``)."""
+    return list(range(1, len(metrics) + 1))
 
 def get_datasets_changes(nodes):
     """
@@ -165,26 +191,36 @@ def _get_files_changes(files):
 
 def _get_regression_metrics(training_data):
     metrics = []
-    y_true_total = []
-    y_pred_total = []
+    y_true_total: list[float] = []
+    y_pred_total: list[float] = []
     for training in training_data:
-        total_clients = len(training["config"]["total_clients"])
+        total_clients = max(len(training["config"]["total_clients"]), 1)
         for r in training["results_per_round"]:
             loss = r["global_loss"]
-            y_true = []
-            y_pred = []
-            for client in r["client_stats"]:
-                y_true.extend(client["y_true"])
-                y_pred.extend(client["y_pred"])
+            cs = r.get("client_stats") or []
+            part = float(r.get("participating_clients", len(cs))) / total_clients
+            has_y = bool(
+                cs and isinstance(cs[0], dict) and "y_true" in cs[0]
+            )
+            if has_y:
+                y_true: list[float] = []
+                y_pred: list[float] = []
+                for client in cs:
+                    y_true.extend(client["y_true"])
+                    y_pred.extend(client["y_pred"])
+                y_true_total.extend(y_true)
+                y_pred_total.extend(y_pred)
+                r2 = float(r2_score(y_true, y_pred))
+            else:
+                r2 = float("nan")
 
-            y_true_total.extend(y_true)
-            y_pred_total.extend(y_pred)
-
-            metrics.append({
-                "loss":loss,
-                "r2": r2_score(y_true, y_pred),
-                "participation": len(r["client_stats"])/total_clients
-            })
+            metrics.append(
+                {
+                    "loss": loss,
+                    "r2": r2,
+                    "participation": part,
+                }
+            )
 
     return metrics, y_true_total, y_pred_total
 
@@ -429,19 +465,24 @@ class ProjectMetricsDialog(tk.Toplevel):
         
 
     def _metrics_per_round_graphic(self, metrics, frame):
-        if self.project_data["type"] == "classification":
-            mtr = "f1"
-        else:
-            mtr = "r2"
-
-        rondas = [m.get('round', i+1) for i, m in enumerate(metrics)]
-        lista_loss = [m.get('loss', 0) for m in metrics]
-
         is_classification = self.project_data.get("type") == "classification"
         mtr_key = "f1" if is_classification else "r2"
-        mtr_label = "F1-Score" if is_classification else "$R^2$ Score"
 
-        lista_metricas = [m.get(mtr_key, 0) for m in metrics]
+        rondas = _round_indices_for_metrics(metrics)
+        lista_loss = [m.get("loss", 0) for m in metrics]
+
+        if is_classification:
+            mtr_label = "F1 / Accuracy"
+            lista_metricas = []
+            for m in metrics:
+                f1v = m.get("f1")
+                if f1v is not None and not (isinstance(f1v, float) and np.isnan(f1v)):
+                    lista_metricas.append(float(f1v))
+                else:
+                    lista_metricas.append(float(m.get("accuracy", 0.0)))
+        else:
+            mtr_label = "$R^2$ Score"
+            lista_metricas = [float(m.get(mtr_key, float("nan"))) for m in metrics]
 
         fig, ax1 = plt.subplots(figsize=(4,3), dpi=100)
         
@@ -461,7 +502,8 @@ class ProjectMetricsDialog(tk.Toplevel):
         if is_classification:
             ax2.set_ylim(0, 1.05)
         else:
-            min_val = min(lista_metricas) if lista_metricas else 0
+            finite = [x for x in lista_metricas if not np.isnan(x)]
+            min_val = min(finite) if finite else 0.0
             ax2.set_ylim(min(min_val - 0.1, -0.1), 1.05)
 
         plt.title(f'Evolución del entrenamiento', pad=15)
@@ -520,7 +562,7 @@ class ProjectMetricsDialog(tk.Toplevel):
         metrics = self.project_data.get("metrics", [])
         loss = [m.get("loss", 0) for m in metrics]
         participation = [m.get("participation", 0) for m in metrics]
-        rounds_metrics = [m.get("round", i + 1) for i, m in enumerate(metrics)]
+        rounds_metrics = _round_indices_for_metrics(metrics)
         
         datasets_changes = self.project_data.get("datasets_changes", {})
         composed_changes = datasets_changes.get("composed_changes", {})

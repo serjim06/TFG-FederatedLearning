@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, OrdinalEncoder
 from torch.utils.data import DataLoader, TensorDataset
 
 from src.db import dbcon
@@ -75,11 +75,39 @@ def _task_kind(metrics: str) -> str:
     return "classification"
 
 
+def resolve_task(
+    params: Optional[dict[str, Any]],
+    metadata: Optional[dict[str, Any]],
+    metrics: str,
+) -> str:
+    """
+    Prioridad: ``parameters.task_type`` (GUI/BD) > ``metadata.type`` (``get_features``)
+    > heurística por nombre de la función de pérdida.
+    """
+    p = params or {}
+    raw = p.get("task_type")
+    if isinstance(raw, str) and raw.strip():
+        t = raw.strip().lower()
+        if t in ("regression", "regresssion"):
+            return "regression"
+        if t == "classification":
+            return "classification"
+    m = metadata or {}
+    raw_m = m.get("type")
+    if isinstance(raw_m, str) and raw_m.strip():
+        t = raw_m.strip().lower()
+        if t in ("regression", "regresssion"):
+            return "regression"
+        if t == "classification":
+            return "classification"
+    return _task_kind(metrics)
+
+
 def _parse_header_and_rows(
     path: Path, expected_cols: list[str]
 ) -> tuple[bool, list[list[str]]]:
     """Devuelve (tiene_cabecera_con_etiquetas, filas_datos)."""
-    with open(path, encoding="utf-8", errors="replace", newline="") as f:
+    with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
         rows = list(csv.reader(f))
     while rows and not any((c or "").strip() for c in rows[-1]):
         rows.pop()
@@ -108,41 +136,170 @@ def _to_float_cell(s: str, col: str) -> float:
         ) from e
 
 
+def _all_parse_as_float(values: list[str]) -> bool:
+    for s in values:
+        try:
+            float((s or "").strip())
+        except ValueError:
+            return False
+    return True
+
+
+def _metadata_categorical_columns(
+    metadata: Optional[dict], in_features: list[str]
+) -> Optional[list[str]]:
+    """
+    Lista explícita de nombres de columna de entrada tratadas como categóricas.
+    ``None`` = inferir por fila (si no es float, OrdinalEncoder).
+    Lista vacía = solo inferencia (mismo efecto que ausencia de clave en la práctica).
+    """
+    if not isinstance(metadata, dict):
+        return None
+    raw = metadata.get("categorical_columns")
+    if raw is None:
+        return None
+    if not isinstance(raw, list):
+        return None
+    feats = set(in_features)
+    return [c for c in raw if isinstance(c, str) and c in feats]
+
+
+def _try_read_rows_by_column_names(
+    path: Path, expected: list[str]
+) -> Optional[list[list[str]]]:
+    """
+    Si la cabecera del CSV contiene exactamente las columnas ``expected`` (sin
+    importar el orden), devuelve las filas ya ordenadas según ``expected``.
+    """
+    with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames is None:
+            return None
+        stripped = [h.strip() for h in reader.fieldnames if h is not None]
+        if len(stripped) != len(reader.fieldnames):
+            return None
+        header_set = set(stripped)
+        exp_set = set(expected)
+        if header_set != exp_set or len(stripped) != len(expected):
+            return None
+        norm_map = {h.strip(): h for h in reader.fieldnames}
+        rows_out: list[list[str]] = []
+        for ri, row in enumerate(reader, start=2):
+            line: list[str] = []
+            for c in expected:
+                orig = norm_map.get(c)
+                if orig is None:
+                    return None
+                val = (row.get(orig) or "").strip()
+                if not val:
+                    raise ValueError(f"Fila {ri}: celda vacía en «{c}».")
+                line.append(val)
+            rows_out.append(line)
+        return rows_out
+
+
+def _input_matrix_from_string_rows(
+    named_rows: list[list[str]],
+    in_features: list[str],
+    categorical_explicit: Optional[list[str]],
+) -> np.ndarray:
+    n = len(named_rows)
+    n_in = len(in_features)
+    if n == 0:
+        raise ValueError("No hay filas de datos en el CSV.")
+    cat_set: Optional[set[str]] = (
+        set(categorical_explicit) if categorical_explicit is not None else None
+    )
+    X = np.zeros((n, n_in), dtype=np.float32)
+    for j, name in enumerate(in_features):
+        vals = [named_rows[i][j] for i in range(n)]
+        if cat_set is not None:
+            treat_as_cat = name in cat_set
+        else:
+            treat_as_cat = not _all_parse_as_float(vals)
+        if treat_as_cat and _all_parse_as_float(vals):
+            X[:, j] = np.asarray([float(s) for s in vals], dtype=np.float32)
+        elif treat_as_cat:
+            enc = OrdinalEncoder(
+                handle_unknown="use_encoded_value", unknown_value=-1
+            )
+            col = enc.fit_transform(np.asarray(vals, dtype=object).reshape(-1, 1))
+            X[:, j] = col.astype(np.float32).ravel()
+        else:
+            try:
+                X[:, j] = np.asarray([float(s) for s in vals], dtype=np.float32)
+            except ValueError as e:
+                raise ValueError(
+                    f"La columna de entrada «{name}» contiene valores no numéricos; "
+                    "declárala en metadata['categorical_columns'] del modelo o usa un CSV ya codificado."
+                ) from e
+    return X
+
+
+def _build_y_raw_from_named_rows(
+    named_rows: list[list[str]], n_in: int, n_out: int
+) -> list[list[str]]:
+    return [
+        [named_rows[i][n_in + k] for i in range(len(named_rows))]
+        for k in range(n_out)
+    ]
+
+
 def _load_xy_from_csv(
     path: Path,
     in_features: list[str],
     out_features: list[str],
     metrics: str,
     metadata: Optional[dict],
+    task: Optional[str] = None,
 ) -> tuple[np.ndarray, np.ndarray, Optional[LabelEncoder]]:
     """Construye matrices X, y (y opcional encoder de etiquetas para clasificación)."""
     expected = list(in_features) + list(out_features)
-    _, data_rows = _parse_header_and_rows(path, expected)
-    if not data_rows:
-        raise ValueError("No hay filas de datos en el CSV.")
-
     n_in, n_out = len(in_features), len(out_features)
-    in_idx = list(range(n_in))
-    out_idx = list(range(n_in, n_in + n_out))
+    y_raw: list[list[Any]]
 
-    X_list: list[list[float]] = []
-    y_raw: list[list[Any]] = [[] for _ in range(n_out)]
+    named = _try_read_rows_by_column_names(path, expected)
+    if named is not None:
+        cat_meta = _metadata_categorical_columns(metadata, in_features)
+        X = _input_matrix_from_string_rows(named, in_features, cat_meta)
+        y_raw = _build_y_raw_from_named_rows(named, n_in, n_out)
+    else:
+        _, data_rows = _parse_header_and_rows(path, expected)
+        if not data_rows:
+            raise ValueError("No hay filas de datos en el CSV.")
 
-    for ri, row in enumerate(data_rows, start=1):
-        if len(row) != len(expected):
-            raise ValueError(
-                f"Fila {ri}: se esperaban {len(expected)} columnas, hay {len(row)}."
-            )
-        for j, cell in enumerate(row):
-            if not (cell or "").strip():
-                raise ValueError(f"Fila {ri}: celda vacía en «{expected[j]}».")
-        X_list.append([_to_float_cell(row[j], expected[j]) for j in in_idx])
-        for k, j in enumerate(out_idx):
-            y_raw[k].append((row[j] or "").strip())
+        in_idx = list(range(n_in))
+        out_idx = list(range(n_in, n_in + n_out))
 
-    X = np.asarray(X_list, dtype=np.float32)
+        X_list: list[list[float]] = []
+        y_raw = [[] for _ in range(n_out)]
 
-    task = (metadata or {}).get("type") or _task_kind(metrics)
+        for ri, row in enumerate(data_rows, start=1):
+            if len(row) != len(expected):
+                raise ValueError(
+                    f"Fila {ri}: se esperaban {len(expected)} columnas, hay {len(row)}."
+                )
+            for j, cell in enumerate(row):
+                if not (cell or "").strip():
+                    raise ValueError(f"Fila {ri}: celda vacía en «{expected[j]}».")
+            X_list.append([_to_float_cell(row[j], expected[j]) for j in in_idx])
+            for k, j in enumerate(out_idx):
+                y_raw[k].append((row[j] or "").strip())
+
+        X = np.asarray(X_list, dtype=np.float32)
+
+    if task is None:
+        task = (metadata or {}).get("type") or _task_kind(metrics)
+        if isinstance(task, str):
+            tl = task.lower().strip()
+            if tl in ("regression", "regresssion"):
+                task = "regression"
+            elif tl == "classification":
+                task = "classification"
+            else:
+                task = _task_kind(metrics)
+        else:
+            task = _task_kind(metrics)
 
     if task == "regression":
         y_blocks = []
@@ -235,11 +392,18 @@ def _get_device() -> torch.device:
 
 def _criterion(metrics: str, task: str) -> nn.Module:
     m = (metrics or "").lower().strip()
-    if task == "regression" or m == "mean_squared_error":
-        return nn.MSELoss()
-    if m == "binary_crossentropy":
-        return nn.BCEWithLogitsLoss()
-    return nn.CrossEntropyLoss()
+    if task == "regression":
+        if m == "mean_squared_error":
+            return nn.MSELoss()
+        raise ValueError(f"La función de pérdida «{m}» no está soportada para regresión.")
+    if task == "classification":
+        if m == "binary_crossentropy":
+            return nn.BCEWithLogitsLoss()
+        if m == "categorical_crossentropy":
+            return nn.CrossEntropyLoss()
+        if m == "sparse_categorical_crossentropy":
+            return nn.CrossEntropyLoss(reduction="sum")
+        raise ValueError(f"La función de pérdida «{m}» no está soportada para clasificación.")
 
 
 def _optimizer(name: str, parameters, lr: float) -> torch.optim.Optimizer:
@@ -669,10 +833,10 @@ def train(
     ) else project_row["output_features"]
 
     metrics = project_row.get("metrics", "categorical_crossentropy")
-    task = metadata.get("type") or _task_kind(metrics)
+    task = resolve_task(params, metadata, metrics)
 
     X, y, _enc = _load_xy_from_csv(
-        path, in_features, out_features, metrics, metadata
+        path, in_features, out_features, metrics, metadata, task=task
     )
     train_loader, val_loader = _make_loaders(
         X,
@@ -765,10 +929,10 @@ def evaluate(
     ) else project_row["output_features"]
 
     metrics = project_row.get("metrics", "categorical_crossentropy")
-    task = metadata.get("type") or _task_kind(metrics)
+    task = resolve_task(params, metadata, metrics)
 
     X, y, _enc = _load_xy_from_csv(
-        path, in_features, out_features, metrics, metadata
+        path, in_features, out_features, metrics, metadata, task=task
     )
     _, val_loader = _make_loaders(
         X,
@@ -831,7 +995,10 @@ def predict(
     feats = model.get_features()
     metadata = feats.get("metadata") if isinstance(feats.get("metadata"), dict) else {}
     metrics = project_row.get("metrics", "categorical_crossentropy")
-    task = metadata.get("type") or _task_kind(metrics)
+    params = project_row["parameters"]
+    if isinstance(params, str):
+        params = json.loads(params)
+    task = resolve_task(params, metadata, metrics)
 
     in_features = json.loads(project_row["input_features"]) if isinstance(
         project_row["input_features"], str

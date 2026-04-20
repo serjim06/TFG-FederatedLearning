@@ -3,10 +3,9 @@ import queue
 from sqlite3 import DatabaseError
 import tkinter as tk
 from tkinter import ttk, filedialog
-from tkinter import filedialog
 import uuid
-import threading
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 import src.db.dbcon as dbcon
 import src.utils.icons.image_finder as image_finder
 from PIL import ImageTk, Image
@@ -14,9 +13,15 @@ from TkToolTip import ToolTip
 from src.gui.new_project import NewProjectDialog, SeeProjectDialog
 from src.gui.base_list import SEC_BTN_STYLE, BaseListFrame
 from src.gui import dialogs
-from src.gui.dialogs import FederatedRoundsDialog, ProvisionalPredictDialog
+from src.gui.dialogs import FederatedRoundsDialog, PredictDialog
 from src.models.node import Node, predict
-from src.gui.project_metrics import ProjectMetricsDialog, get_metrics_per_round, get_time_per_round, get_datasets_changes
+from src.gui.project_metrics import (
+    ProjectMetricsDialog,
+    get_metrics_per_round,
+    get_regression_metrics_bundle,
+    get_time_per_round,
+    get_datasets_changes,
+)
 from src.projects.reports import generate_report
 from src.federated import run_federated_training
 from src.models.node import merge_project_training_results
@@ -76,7 +81,7 @@ class ProjectListFrame(BaseListFrame):
         try:
             self.metrics_button.state(["disabled"])
             self.config_button.state(["disabled"])
-            self.play_button.state(["disabled"])
+            self.train_button.state(["disabled"])
             self.report_button.state(["disabled"])
             self.predict_button.state(["disabled"])
             self.tree.configure(selectmode="none")
@@ -147,6 +152,8 @@ class ProjectListFrame(BaseListFrame):
                             if (prev.get("metrics") or "") == "mean_squared_error"
                             else "classification"
                         )
+                    cur_data_round = int(prev.get("training_round") or 0)
+                    upd["training_round"] = cur_data_round + 1
                     dbcon.command("update", "projects", upd)
                     self._hide_loading()
                     dialogs.InfoDialog(
@@ -171,8 +178,8 @@ class ProjectListFrame(BaseListFrame):
             pass
         self.after(50, self._poll_federated_queue)
 
-    def _predict_provisional(self) -> None:
-        """Abre el diálogo de entrada y ejecuta :func:`predict` con el primer nodo del proyecto."""
+    def _predict(self) -> None:
+        """Abre el diálogo de entrada y ejecuta la predicción en segundo plano."""
         seleccionado = self.tree.selection()
         if not seleccionado:
             dialogs.InfoDialog(
@@ -203,8 +210,7 @@ class ProjectListFrame(BaseListFrame):
             dialogs.InfoDialog(
                 self,
                 "Sin nodos",
-                "El proyecto no tiene nodos asignados; la predicción usa el modelo del proyecto "
-                "asociado al primer nodo.",
+                "El proyecto no tiene nodos asignados. Añade nodos en la configuración del proyecto.",
                 "warning",
             )
             return
@@ -214,31 +220,138 @@ class ProjectListFrame(BaseListFrame):
             if isinstance(row["input_features"], str)
             else row["input_features"]
         )
-        default_line = ""
-        if len(in_features) == 4:
-            default_line = "5.1,3.5,1.4,0.2"
+        def on_confirm(vals: list[float], node_id: str) -> None:
+            self._start_prediction_job(project_id, node_id, vals)
 
-        def on_confirm(vals: list[float]) -> None:
-            nid = uuid.UUID(nodes[0]).bytes
-            try:
-                node_rows = dbcon.command("select", "nodes", {"id": nid})
-                if not node_rows:
-                    dialogs.InfoDialog(self, "Error", "No se encontró el nodo en la base de datos.", "error")
-                    return
-                nd = node_rows[0]
-                node = Node(nd["id"], nd["valid"], nd["project_id"])
-                out = predict(node, vals, project=dict(row))
-                text = json.dumps(out, indent=2, ensure_ascii=False)
-                dialogs.InfoDialog(self, "Resultado de la predicción", text, "info")
-            except Exception as e:
-                dialogs.InfoDialog(self, "Error en predicción", str(e), "error")
-
-        ProvisionalPredictDialog(
+        PredictDialog(
             self,
             feature_names=in_features,
-            default_line=default_line,
+            node_ids=nodes,
+            default_line="",
             on_confirm=on_confirm,
         )
+
+    def _prediction_outputs_for_pending(
+        self, prediction_result: Any, output_features: list[str]
+    ) -> list[Any]:
+        """Normaliza la salida de `predict` al formato de columnas de salida del proyecto."""
+        if not output_features:
+            return []
+
+        if isinstance(prediction_result, dict):
+            if len(output_features) == 1 and "label" in prediction_result:
+                return [prediction_result["label"]]
+            raw_output = prediction_result.get("output")
+        else:
+            raw_output = prediction_result
+
+        if isinstance(raw_output, tuple):
+            values = list(raw_output)
+        elif isinstance(raw_output, list):
+            values = raw_output
+        else:
+            values = [raw_output]
+
+        if len(values) < len(output_features):
+            values = values + [""] * (len(output_features) - len(values))
+        return values[: len(output_features)]
+
+    def _build_prediction_pending_entry(
+        self,
+        project_row: dict[str, Any],
+        node_id: str,
+        input_values: list[float],
+        prediction_result: Any,
+    ) -> dict[str, Any]:
+        in_features = (
+            json.loads(project_row["input_features"])
+            if isinstance(project_row["input_features"], str)
+            else project_row["input_features"]
+        )
+        out_features = (
+            json.loads(project_row["output_features"])
+            if isinstance(project_row["output_features"], str)
+            else project_row["output_features"]
+        )
+        output_values = self._prediction_outputs_for_pending(prediction_result, out_features)
+
+        pending_data: dict[str, Any] = {}
+        for key, value in zip(in_features, input_values):
+            pending_data[key] = value
+        for key, value in zip(out_features, output_values):
+            pending_data[key] = value
+
+        return {
+            "node": f"node_{node_id}",
+            "data": pending_data,
+        }
+
+    def _start_prediction_job(
+        self, project_id: bytes, node_id: str, values: list[float]
+    ) -> None:
+        try:
+            project_data = dbcon.command("select", "projects", {"id": project_id})
+        except (ValueError, DatabaseError) as e:
+            dialogs.InfoDialog(self, "Error", str(e), "error")
+            return
+
+        if not project_data:
+            dialogs.InfoDialog(self, "Error", "No se encontró el proyecto.", "error")
+            return
+        row = project_data[0]
+
+        try:
+            node_rows = dbcon.command("select", "nodes", {"id": uuid.UUID(node_id).bytes})
+        except (ValueError, DatabaseError) as e:
+            dialogs.InfoDialog(self, "Error", str(e), "error")
+            return
+
+        if not node_rows:
+            dialogs.InfoDialog(self, "Error", "No se encontró el nodo en la base de datos.", "error")
+            return
+        nd = node_rows[0]
+        node = Node(nd["id"], nd["valid"], nd["project_id"])
+
+        self._show_loading("Realizando predicción…")
+
+        def _compute(node_obj: Node, vals: list[float], project_row: dict[str, Any]) -> Any:
+            return predict(node_obj, vals, project=dict(project_row))
+
+        future = self._executor.submit(_compute, node, values, row)
+
+        def _done_callback(f):
+            def _finish_on_ui_thread():
+                try:
+                    out = f.result()
+                    pending_raw = row.get("unconfirmed_results") or "[]"
+                    pending = json.loads(pending_raw) if isinstance(pending_raw, str) else list(pending_raw)
+                    pending.append(self._build_prediction_pending_entry(row, node_id, values, out))
+                    dbcon.command(
+                        "update",
+                        "projects",
+                        {"id": project_id, "unconfirmed_results": json.dumps(pending, ensure_ascii=False)},
+                    )
+                    self._hide_loading()
+                    self._initialize_tree()
+                    dialogs.InfoDialog(
+                        self,
+                        "Predicción completada",
+                        (
+                            "Predicción añadida a 'Confirmar Resultados Pendientes' "
+                            f"del proyecto '{row['name']}'."
+                        ),
+                        "info",
+                    )
+                except Exception as e:
+                    self._hide_loading()
+                    dialogs.InfoDialog(self, "Error en predicción", str(e), "error")
+
+            try:
+                self.after(0, _finish_on_ui_thread)
+            except Exception:
+                pass
+
+        future.add_done_callback(_done_callback)
 
     def _play_federated_training(self) -> None:
         """Abre el diálogo de rondas sin bloquear el bucle (callback al confirmar)."""
@@ -328,13 +441,26 @@ class ProjectListFrame(BaseListFrame):
     def _insert_extra_buttons(self):
             self.config_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("settings")).resize((24,24)))
             self.play_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("play")).resize((24,24)))
+            self.train_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("train")).resize((24,24)))
             self.metrics_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("metrics")).resize((24,24)))
             self.report_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("report")).resize((24,24)))
 
-            self.play_button = ttk.Button(self.toolbox, image=self.play_image, text="", compound="left",
+            self.predict_button = ttk.Button(
+                self.toolbox,
+                image=self.play_image,
+                text="",
+                compound="left",
+                command=self._predict,
+                width=2,
+                style=SEC_BTN_STYLE,
+            )
+            self.predict_button.pack(side="left", padx=5, pady=5)
+            self.predict_button.state(["disabled"])
+
+            self.train_button = ttk.Button(self.toolbox, image=self.train_image, text="", compound="left",
                        command=self._play_federated_training, width=2, style=SEC_BTN_STYLE)
-            self.play_button.pack(side="left", padx=5, pady=5)
-            self.play_button.state(["disabled"])
+            self.train_button.pack(side="left", padx=5, pady=5)
+            self.train_button.state(["disabled"])
             
             self.config_button = ttk.Button(self.toolbox, image=self.config_image, text="", compound="left",
                        command=self._config_project, width=2, style="Sec.TButton")
@@ -351,25 +477,15 @@ class ProjectListFrame(BaseListFrame):
             self.report_button.pack(side="left", padx=5, pady=5)
             self.report_button.state(["disabled"])
 
-            self.predict_button = ttk.Button(
-                self.toolbox,
-                text="Predicción",
-                command=self._predict_provisional,
-                width=12,
-                style=SEC_BTN_STYLE,
-            )
-            self.predict_button.pack(side="left", padx=5, pady=5)
-            self.predict_button.state(["disabled"])
-
             ToolTip(self.add_button, text="Crear un proyecto nuevo", delay=0.5)
             ToolTip(self.delete_button, text="Eliminar proyecto seleccionado", delay=0.5)
-            ToolTip(self.play_button, text="Iniciar entrenamiento federado (servidor FedAvg)", delay=0.5)
+            ToolTip(self.train_button, text="Iniciar entrenamiento federado (servidor FedAvg)", delay=0.5)
             ToolTip(self.config_button, text="Configurar el proyecto seleccionado", delay=0.5)
             ToolTip(self.metrics_button, text="Ver las métricas del proyecto seleccionado", delay=0.5)
             ToolTip(self.report_button, text="Descargar el reporte del proyecto seleccionado", delay=0.5)
             ToolTip(
                 self.predict_button,
-                text="Inferencia provisional con el modelo del proyecto (primer nodo)",
+                text="Realizar predicción para el proyecto seleccionado",
                 delay=0.5,
             )
             
@@ -541,9 +657,9 @@ class ProjectListFrame(BaseListFrame):
         super()._selected_item_changed()
         self.config_button.state(["!disabled"]) if self.tree.selection() else self.config_button.state(["disabled"])
         if self._federated_running:
-            self.play_button.state(["disabled"])
+            self.train_button.state(["disabled"])
         else:
-            self.play_button.state(["!disabled"]) if self.tree.selection() else self.play_button.state(["disabled"])
+            self.train_button.state(["!disabled"]) if self.tree.selection() else self.train_button.state(["disabled"])
         self.metrics_button.state(["!disabled"]) if self.tree.selection() else self.metrics_button.state(["disabled"])
         self.report_button.state(["!disabled"]) if self.tree.selection() else self.report_button.state(["disabled"])
         self.predict_button.state(["!disabled"]) if self.tree.selection() else self.predict_button.state(["disabled"])
@@ -580,20 +696,44 @@ class ProjectListFrame(BaseListFrame):
                         training_data = json.loads(payload[0]["training_results"])
                         project_type = payload[0]["type"]
                         metrics = get_metrics_per_round(training_data, project_type)
+                        if project_type == "regression":
+                            _, y_true_total, y_pred_total = get_regression_metrics_bundle(
+                                training_data
+                            )
+                        else:
+                            y_true_total, y_pred_total = [], []
                         time_per_round = get_time_per_round(training_data)
                         nodes = json.loads(payload[0]["nodes"])
                         datasets_changes = get_datasets_changes(nodes)
-                        return training_data, project_type, metrics, time_per_round, datasets_changes
+                        return (
+                            training_data,
+                            project_type,
+                            metrics,
+                            time_per_round,
+                            datasets_changes,
+                            y_true_total,
+                            y_pred_total,
+                        )
 
                     future = self._executor.submit(_compute, project_data)
 
                     def _done_callback(f):
                         def _finish_on_ui_thread():
                             try:
-                                training_data, project_type, metrics, time_per_round, datasets_changes = f.result()
+                                (
+                                    training_data,
+                                    project_type,
+                                    metrics,
+                                    time_per_round,
+                                    datasets_changes,
+                                    y_true_total,
+                                    y_pred_total,
+                                ) = f.result()
                                 project_data[0]["time_per_round"] = time_per_round
                                 project_data[0]["datasets_changes"] = datasets_changes
                                 project_data[0]["metrics"] = metrics
+                                project_data[0]["y_true"] = y_true_total
+                                project_data[0]["y_pred"] = y_pred_total
                                 self._hide_loading()
                                 ProjectMetricsDialog(self, training_data, project_data[0], title="Métricas del Proyecto")
                             except Exception as e:
@@ -608,7 +748,7 @@ class ProjectListFrame(BaseListFrame):
 
                     future.add_done_callback(_done_callback)
             except (ValueError, DatabaseError) as e:
-                dialogs.InfoDialog(self, "Error", str(e) + "errorororejoriaior", "error")
+                dialogs.InfoDialog(self, "Error", str(e), "error")
         else:
             dialogs.InfoDialog(self, "Información", "No hay ningún proyecto seleccionado para ver las métricas.", "info")
     
@@ -767,7 +907,7 @@ class ProjectListFrame(BaseListFrame):
         self.layers = {}
 
         not_img = Image.open(image_finder.find_image("pend_not")).resize((24,24))
-        p_img = Image.open(image_finder.find_image("project"))
+        p_img = Image.open(image_finder.find_image("project")).resize((24,24))
 
         self.project_image = ImageTk.PhotoImage(p_img)
         self.pend_image = ImageTk.PhotoImage(not_img)

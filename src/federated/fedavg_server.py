@@ -35,6 +35,38 @@ ProgressCallback = Optional[
 ]
 
 
+def _persist_global_weights_to_model_path(
+    project_row: dict[str, Any], global_sd: dict[str, torch.Tensor]
+) -> None:
+    """
+    Guarda el ``state_dict`` global junto al ``model_path`` del proyecto (``.pth``),
+    para que ``BaseModel.load_model`` cargue los pesos en predicción y evaluación local.
+    """
+    if not global_sd:
+        return
+    mp = (project_row.get("model_path") or "").strip()
+    if not mp:
+        return
+    resolved = nm._resolve_model_path(mp)
+    out_path = str(Path(resolved).with_suffix(".pth"))
+    to_save = {k: v.detach().cpu() for k, v in global_sd.items()}
+    torch.save(to_save, out_path)
+
+
+def _flower_client_resources() -> tuple[dict[str, float], Optional[dict[str, Any]]]:
+    """
+    Recursos por cliente Flower y configuración opcional de Ray.
+
+    Si hay CUDA disponible, cada cliente reserva 1 GPU para garantizar
+    que el entrenamiento local se ejecute en GPU.
+    """
+    has_cuda = torch.cuda.is_available() and torch.cuda.device_count() > 0
+    if not has_cuda:
+        return {"num_cpus": 1.0, "num_gpus": 0.0}, None
+
+    return {"num_cpus": 1.0, "num_gpus": 1.0}, {"num_gpus": torch.cuda.device_count()}
+
+
 def _loader_seed(server_round: int, partition_index: int) -> int:
     """
     Misma semilla en fit, evaluate (Flower) y post-proceso para que el split
@@ -222,6 +254,7 @@ class _FederatedNumPyClient(NumPyClient):
             self.out_features,
             self.metrics,
             self.metadata,
+            task=self.task,
         )
         train_loader, val_loader = nm._make_loaders(
             X,
@@ -269,6 +302,7 @@ class _FederatedNumPyClient(NumPyClient):
             self.out_features,
             self.metrics,
             self.metadata,
+            task=self.task,
         )
         _, val_loader = nm._make_loaders(
             X,
@@ -334,8 +368,15 @@ def _collect_round_client_stats(
     model_path: str,
     device: torch.device,
     round_seed: int,
+    *,
+    full_detail: bool = True,
 ) -> tuple[list[dict[str, Any]], list[float], list[float], list[float]]:
-    """Evalúa el modelo global de la ronda en cada cliente (mismo split val que en ``fit``)."""
+    """
+    Evalúa el modelo global de la ronda en cada cliente (mismo split val que en ``fit``).
+
+    Si ``full_detail`` es False, solo se guardan pérdida/accuracy agregada por cliente
+    (sin matrices ni vectores ``y_*``) para reducir tiempo y tamaño del JSON.
+    """
     gnet = model_wrapper.load_model(model_path)
     gnet.load_state_dict(
         {k: v.to(device) for k, v in _ndarrays_to_state_dict(snapshot_ndarrays, param_keys).items()}
@@ -351,7 +392,7 @@ def _collect_round_client_stats(
         ns = str(uuid.UUID(bytes=nid))
         path = nm._dataset_csv_path(nid, project_row)
         X, y, _enc = nm._load_xy_from_csv(
-            path, in_features, out_features, metrics, metadata
+            path, in_features, out_features, metrics, metadata, task=task
         )
         _, val_loader = nm._make_loaders(
             X,
@@ -367,6 +408,16 @@ def _collect_round_client_stats(
         acc_weights.append(float(n_samples))
         if task == "classification":
             client_accs.append(float(ev.get("accuracy", 0.0)))
+
+        if not full_detail:
+            client_stats.append(
+                {
+                    "client_id": ns,
+                    "val_loss": float(ev["loss"]),
+                    "n_val_samples": int(n_samples),
+                }
+            )
+            continue
 
         yt, yp = nm._gather_predictions(gnet, val_loader, device, task, metrics)
         if task == "classification":
@@ -438,7 +489,7 @@ def run_federated_training(
     )
 
     metrics = project_row.get("metrics", "categorical_crossentropy")
-    task = metadata.get("type") or nm._task_kind(metrics)
+    task = nm.resolve_task(params, metadata, metrics)
 
     device = nm._get_device()
 
@@ -452,16 +503,19 @@ def run_federated_training(
     round_times: list[float] = []
     t_start = time.perf_counter()
 
+    fraction_fit = project_row.get("fraction_fit", 1.0)
+    fraction_evaluate = project_row.get("fraction_evaluate", 1.0)
+
     strategy = _TrackingFedAvg(
         snapshots=snapshots,
         round_times=round_times,
         on_progress=on_progress,
         num_rounds=num_federated_rounds,
         t_run_start=t_start,
-        fraction_fit=1.0,
-        fraction_evaluate=1.0,
-        min_fit_clients=n_clients,
-        min_evaluate_clients=n_clients,
+        fraction_fit=fraction_fit,
+        fraction_evaluate=fraction_evaluate,
+        min_fit_clients=int(n_clients * fraction_fit),
+        min_evaluate_clients=int(n_clients * fraction_evaluate),
         min_available_clients=n_clients,
         initial_parameters=initial_parameters,
         on_fit_config_fn=lambda rnd: {"server_round": float(rnd)},
@@ -483,17 +537,22 @@ def run_federated_training(
         metadata,
     )
 
+    client_resources, ray_gpu_args = _flower_client_resources()
+    ray_init_args: dict[str, Any] = {
+        "ignore_reinit_error": True,
+        "include_dashboard": False,
+    }
+    if ray_gpu_args is not None:
+        ray_init_args.update(ray_gpu_args)
+
     try:
         start_simulation(
             client_fn=client_fn,
             num_clients=n_clients,
             config=ServerConfig(num_rounds=num_federated_rounds),
             strategy=strategy,
-            client_resources={"num_cpus": 1.0, "num_gpus": 0.0},
-            ray_init_args={
-                "ignore_reinit_error": True,
-                "include_dashboard": False,
-            },
+            client_resources=client_resources,
+            ray_init_args=ray_init_args,
         )
     finally:
         if ray.is_initialized():
@@ -508,9 +567,11 @@ def run_federated_training(
         )
 
     results_per_round: list[dict[str, Any]] = []
+    n_clients = len(node_ids_bytes)
     for r in range(num_federated_rounds):
         round_time = round_times[r] if r < len(round_times) else 0.0
         snap = snapshots[r]
+        is_last = r == num_federated_rounds - 1
 
         client_stats, val_losses, acc_weights, client_accs = _collect_round_client_stats(
             snap,
@@ -527,6 +588,7 @@ def run_federated_training(
             model_path,
             device,
             round_seed=r + 1,
+            full_detail=is_last,
         )
 
         global_loss = float(np.mean(val_losses)) if val_losses else 0.0
@@ -542,6 +604,7 @@ def run_federated_training(
             "time": round_time,
             "global_loss": global_loss,
             "client_stats": client_stats,
+            "participating_clients": n_clients,
         }
         if task == "classification":
             row["global_accuracy"] = global_accuracy
@@ -555,7 +618,7 @@ def run_federated_training(
     first_nid = node_ids_bytes[0]
     path = nm._dataset_csv_path(first_nid, project_row)
     X, y, _enc = nm._load_xy_from_csv(
-        path, in_features, out_features, metrics, metadata
+        path, in_features, out_features, metrics, metadata, task=task
     )
     _, val_loader = nm._make_loaders(
         X,
@@ -590,6 +653,32 @@ def run_federated_training(
         training_results_entry["final_metrics"]["best_accuracy"] = float(
             max(r.get("global_accuracy", 0.0) for r in results_per_round)
         )
+
+    last_cs = results_per_round[-1].get("client_stats") or []
+    training_results_entry["final_metrics"]["client_stats_final"] = last_cs
+    if task == "regression" and last_cs and isinstance(last_cs[0], dict) and "y_true" in last_cs[0]:
+        yt_f: list[float] = []
+        yp_f: list[float] = []
+        for c in last_cs:
+            yt_f.extend(c.get("y_true", []))
+            yp_f.extend(c.get("y_pred", []))
+        training_results_entry["final_metrics"]["y_true_final"] = yt_f
+        training_results_entry["final_metrics"]["y_pred_final"] = yp_f
+    elif task == "classification" and last_cs and isinstance(last_cs[0], dict):
+        if "confusion_matrix" in last_cs[0]:
+            yt_all: list[int] = []
+            yp_all: list[int] = []
+            for c in last_cs:
+                cm = np.asarray(c["confusion_matrix"], dtype=int)
+                for i in range(cm.shape[0]):
+                    for j in range(cm.shape[1]):
+                        n_ij = int(cm[i, j])
+                        yt_all.extend([i] * n_ij)
+                        yp_all.extend([j] * n_ij)
+            training_results_entry["final_metrics"]["y_true_final"] = yt_all
+            training_results_entry["final_metrics"]["y_pred_final"] = yp_all
+
+    _persist_global_weights_to_model_path(project_row, global_sd)
 
     return {
         "training_results_entry": training_results_entry,

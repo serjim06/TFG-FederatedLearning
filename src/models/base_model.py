@@ -20,6 +20,7 @@ class BaseModel(ABC):
         """
         Diccionario con al menos ``input_features`` y ``output_features`` (listas de nombres).
         Opcionalmente ``metadata`` con ``type`` (``regression`` | ``classification``),
+        ``categorical_columns`` (nombres de columnas de entrada con texto categórico a codificar),
         ``labels`` (clasificación), ``units``, etc., para informes y para formatear predicciones.
         """
         pass

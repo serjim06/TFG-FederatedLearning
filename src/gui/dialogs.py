@@ -193,24 +193,19 @@ class FederatedRoundsDialog(BaseDialog):
         self.center_dialog()
 
 
-class ProvisionalPredictDialog(BaseDialog):
-    """
-    Entrada provisional de valores para inferencia (lista separada por comas).
-
-    Al confirmar, llama ``on_confirm(valores: list[float])`` en el hilo principal
-    tras cerrar el diálogo (mismo patrón que :class:`FederatedRoundsDialog`).
-    """
-
+class PredictDialog(BaseDialog):
     def __init__(
         self,
         parent,
         feature_names: list[str],
+        node_ids: list[str],
         default_line: str = "",
         on_confirm=None,
     ):
-        super().__init__(parent, "Predicción (provisional)")
+        super().__init__(parent, "Realizar predicción")
         self._on_confirm = on_confirm
         self._feature_names = feature_names
+        self._node_ids = node_ids or []
 
         hint = (
             "Introduce los valores de entrada en el mismo orden que las columnas del proyecto, "
@@ -226,6 +221,19 @@ class ProvisionalPredictDialog(BaseDialog):
             wraplength=420,
             justify="left",
         ).pack(padx=16, pady=(16, 8))
+
+        node_row = tk.Frame(self, bg=utils.BG_COLOR)
+        node_row.pack(fill="x", padx=16, pady=(0, 8))
+        tk.Label(node_row, text="Nodo:", bg=utils.BG_COLOR).pack(side="left", padx=(0, 8))
+        self._selected_node = tk.StringVar(value=self._node_ids[0] if self._node_ids else "")
+        self._node_combo = ttk.Combobox(
+            node_row,
+            textvariable=self._selected_node,
+            values=self._node_ids,
+            state="readonly",
+            width=40,
+        )
+        self._node_combo.pack(side="left", fill="x", expand=True)
 
         self._var = tk.StringVar(value=default_line or "")
         entry = ttk.Entry(self, textvariable=self._var, width=52)
@@ -259,10 +267,19 @@ class ProvisionalPredictDialog(BaseDialog):
                     "warning",
                 )
                 return
+            chosen_node = self._selected_node.get().strip()
+            if not chosen_node:
+                InfoDialog(
+                    self,
+                    "Nodo requerido",
+                    "Selecciona un nodo para realizar la predicción.",
+                    "warning",
+                )
+                return
             self.destroy()
             if self._on_confirm is not None:
                 root = parent.winfo_toplevel()
-                root.after(0, lambda v=list(vals): self._on_confirm(v))
+                root.after(0, lambda v=list(vals), n=chosen_node: self._on_confirm(v, n))
 
         def _cancel():
             self.destroy()
