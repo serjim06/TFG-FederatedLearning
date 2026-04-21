@@ -1,12 +1,15 @@
 import json
 import tkinter as tk
-from tkinter import ttk
+from collections.abc import Callable
 from pathlib import Path
 import re
 import shutil
+from sqlite3 import DatabaseError
+from tkinter import ttk
 
-from src.utils import utils
+from src.db import dbcon
 from src.gui import dialogs
+from src.utils import utils
 
 class CorrectResultDialog(tk.Toplevel):
     def __init__(self, parent, row, out_features):
@@ -84,13 +87,24 @@ class CorrectResultDialog(tk.Toplevel):
         
 
 class ConfirmResultsFrame (tk.Frame):
-    def __init__(self, parent, pending, labels, cur_round):
+    def __init__(
+        self,
+        parent,
+        pending,
+        labels,
+        cur_round,
+        *,
+        project_id: bytes | None = None,
+        on_unconfirmed_persisted: Callable[[], None] | None = None,
+    ):
         super().__init__(parent)
-        
+
         self.parent = parent
         self.pending = pending
         self.labels = labels
         self.cur_round = cur_round
+        self._project_id = project_id
+        self._on_unconfirmed_persisted = on_unconfirmed_persisted
         
         self.configure(bg=utils.BG_COLOR)
         utils.get_style()
@@ -116,7 +130,26 @@ class ConfirmResultsFrame (tk.Frame):
 
         
         self._build_ui()
-        
+
+    def _persist_unconfirmed(self) -> None:
+        """Write remaining pending items to storage and notify listeners."""
+        if self._project_id is None:
+            return
+        try:
+            dbcon.command(
+                "update",
+                "projects",
+                {
+                    "id": self._project_id,
+                    "unconfirmed_results": json.dumps(self.pending, ensure_ascii=False),
+                },
+            )
+        except DatabaseError as e:
+            dialogs.InfoDialog(self, "Error", str(e), "error")
+            return
+        if self._on_unconfirmed_persisted is not None:
+            self._on_unconfirmed_persisted()
+
     def _build_ui(self):
         col = 0
         for in_f in json.loads(self.labels["in_features"]):
@@ -168,10 +201,10 @@ class ConfirmResultsFrame (tk.Frame):
         
         for widget in self.table_frame.winfo_children():
             widget.destroy()
-            
+
         self._build_ui()
-        
-    
+        self._persist_unconfirmed()
+
     def _wrong_result(self, row):
         correct_dialog = CorrectResultDialog(self, row, json.loads(self.labels["out_features"]))
         correct_dialog.transient(self)
@@ -231,9 +264,10 @@ class ConfirmResultsFrame (tk.Frame):
         
         for widget in self.table_frame.winfo_children():
             widget.destroy()
-            
+
         self._build_ui()
-    
+        self._persist_unconfirmed()
+
     def _on_configure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 

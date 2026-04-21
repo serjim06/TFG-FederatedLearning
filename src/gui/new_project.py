@@ -685,10 +685,21 @@ class SeeProjectDialog(tk.Toplevel):
             return
         AddDatasetDialog(self, nodes, self.project)
         
+    def _on_unconfirmed_persisted(self) -> None:
+        self.project["unconfirmed_results"] = json.dumps(self.unconfirmed, ensure_ascii=False)
+        self.parent._initialize_tree()
+
     def _confirm_results(self):
         for widget in self.winfo_children():
             widget.destroy()
-        confirm = ConfirmResultsFrame(self, self.unconfirmed, {"in_features": self.project["input_features"], "out_features": self.project["output_features"]}, self.project["training_round"])
+        confirm = ConfirmResultsFrame(
+            self,
+            self.unconfirmed,
+            {"in_features": self.project["input_features"], "out_features": self.project["output_features"]},
+            self.project["training_round"],
+            project_id=self.project_id,
+            on_unconfirmed_persisted=self._on_unconfirmed_persisted,
+        )
         confirm.pack(fill="both", expand=True)
         
         buttons = ttk.Frame(self, padding=10, style="TFrame")
