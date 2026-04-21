@@ -610,6 +610,7 @@ def _evaluate_loop(
 def _strategy_display(aggregation: str) -> str:
     m = {
         "fed_avg": "FedAvg",
+        "fed_med": "FedMedian",
         "fed_sum": "FedSum",
         "fed_weighted": "FedWeighted",
         "fed_prox": "FedProx",
