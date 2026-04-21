@@ -35,22 +35,18 @@ ProgressCallback = Optional[
 ]
 
 
-def _persist_global_weights_to_model_path(
-    project_row: dict[str, Any], global_sd: dict[str, torch.Tensor]
+def _persist_global_weights_for_train_id(
+    project_row: dict[str, Any],
+    global_sd: dict[str, torch.Tensor],
+    train_id: str,
 ) -> None:
-    """
-    Guarda el ``state_dict`` global junto al ``model_path`` del proyecto (``.pth``),
-    para que ``BaseModel.load_model`` cargue los pesos en predicción y evaluación local.
-    """
-    if not global_sd:
+    """Guarda el ``state_dict`` global como ``{train_id}.pth`` junto al ``.py`` del modelo."""
+    if not global_sd or not (train_id or "").strip():
         return
     mp = (project_row.get("model_path") or "").strip()
     if not mp:
         return
-    resolved = nm._resolve_model_path(mp)
-    out_path = str(Path(resolved).with_suffix(".pth"))
-    to_save = {k: v.detach().cpu() for k, v in global_sd.items()}
-    torch.save(to_save, out_path)
+    nm.persist_state_dict_for_train(mp, train_id.strip(), global_sd, project_row)
 
 
 def _flower_client_resources() -> tuple[dict[str, float], Optional[dict[str, Any]]]:
@@ -93,7 +89,6 @@ def _print_client_dataset(
     """
     ns = str(uuid.UUID(bytes=nid))
     ap = Path(path).resolve()
-    # Incluir carpeta explícita: varios nodos comparten nombre de archivo pero no la ruta.
     print(
         f"[Flower] {phase} | partición={partition_index} | nodo={ns} | "
         f"ronda_servidor={server_round} | carpeta_nodo={ap.parent.name} | "
@@ -442,23 +437,6 @@ def run_federated_training(
     num_federated_rounds: int,
     on_progress: ProgressCallback = None,
 ) -> dict[str, Any]:
-    """
-    Ejecuta ``num_federated_rounds`` rondas FedAvg con Flower (simulación Ray en paralelo).
-
-    Parameters
-    ----------
-    project_row
-        Fila de ``projects`` (dict) con ``nodes``, ``parameters``, ``model_path``, etc.
-    num_federated_rounds
-        Número de rondas federadas (comunicación servidor-clientes).
-    on_progress
-        ``callback(ronda_actual, total_rondas, mensaje_corto, eta_segundos)``.
-
-    Returns
-    -------
-    dict con ``training_results_entry`` (un experimento con varias rondas en ``results_per_round``),
-    ``total_time_seconds`` y ``global_state_dict`` (último modelo global, tensors en CPU).
-    """
     if num_federated_rounds < 1:
         raise ValueError("El número de rondas debe ser >= 1.")
 
@@ -494,6 +472,7 @@ def run_federated_training(
     device = nm._get_device()
 
     net = model_wrapper.load_model(model_path)
+    nm.load_trained_weights_into(net, project_row, model_path)
     global_sd = {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
     param_keys = list(global_sd.keys())
     initial_ndarrays = _state_dict_to_ndarrays(global_sd)
@@ -632,6 +611,7 @@ def run_federated_training(
     gnet.load_state_dict({k: v.to(device) for k, v in global_sd.items()})
     last_yt, last_yp = nm._gather_predictions(gnet, val_loader, device, task, metrics)
 
+    fed_train_id = f"fed_{uuid.uuid4()}"
     training_results_entry = nm.build_training_results_entry(
         project_row,
         first_nid,
@@ -645,7 +625,7 @@ def run_federated_training(
         elapsed_seconds=total_time,
         global_loss=float(results_per_round[-1]["global_loss"]) if results_per_round else 0.0,
     )
-    training_results_entry["train_id"] = f"fed_{uuid.uuid4()}"
+    training_results_entry["train_id"] = fed_train_id
     training_results_entry["results_per_round"] = results_per_round
     training_results_entry["federated_rounds"] = num_federated_rounds
     training_results_entry["final_metrics"]["total_time_seconds"] = total_time
@@ -678,7 +658,7 @@ def run_federated_training(
             training_results_entry["final_metrics"]["y_true_final"] = yt_all
             training_results_entry["final_metrics"]["y_pred_final"] = yp_all
 
-    _persist_global_weights_to_model_path(project_row, global_sd)
+    _persist_global_weights_for_train_id(project_row, global_sd, fed_train_id)
 
     return {
         "training_results_entry": training_results_entry,

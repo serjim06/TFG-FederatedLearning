@@ -33,13 +33,11 @@ class UserListFrame(tk.Frame):
         self.populate()
         
     def _setup_toolbox(self):
-        # botones comunes: user, add, delete
         self.toolbox = tk.Frame(self, bg=utils.BG_COLOR, relief="raised", bd=2)
         self.toolbox.pack(side="top", fill="x")
         
         self.return_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("return")).resize((24,24)))
-        
-        # ---- USER ----
+
         self.return_button = ttk.Button(self.toolbox, image=self.return_image, text="", compound="left",
                        command=self._return, width=2, style=utils.SEC_TBUTTON_STYLE)
         self.return_button.pack(side="left", padx=5, pady=5)

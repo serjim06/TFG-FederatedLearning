@@ -152,16 +152,12 @@ def _delete(table, where: dict):
 
 
 def _select(table, obj):
-    # Build filter object, but treat id == '*' as a request for all rows
-    # (i.e. no WHERE clause).
     clauses = []
     values = []
 
-    # Remove any id=='*' from filters so we can handle select-all
     filter_obj = {k: v for k, v in obj.items() if not (k == "id" and v == "*")}
 
     for col, val in filter_obj.items():
-        # basic column name validation to avoid SQL injection via column names
         if not re.match(r'^[A-Za-z_]\w*$', col):
             raise ValueError(f"Invalid column name: {col}")
         clauses.append(f"{col} = ?")
@@ -171,7 +167,6 @@ def _select(table, obj):
         where_clause = " AND ".join(clauses)
         sql_cmd = f"SELECT * FROM {table} WHERE {where_clause}"
     else:
-        # no filters -> select all rows
         sql_cmd = f"SELECT * FROM {table}"
 
     try:

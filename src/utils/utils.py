@@ -18,7 +18,6 @@ def get_style():
             - **"Sec.TButton"**: Style for secondary buttons.
             - **"Custom.TEntry"**: Style for entry fields.
     """
-    # ----- Estilos -----
     style = ttk.Style()
     style.theme_use("clam")
 

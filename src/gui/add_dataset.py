@@ -71,14 +71,6 @@ def _same_labels_wrong_order(row: list, expected_labels: list) -> bool:
 def validate_csv_for_project(
     src_path: Path, in_features: list, out_features: list
 ) -> tuple[list[list[str]] | None, str | None]:
-    """
-    Comprueba que el CSV sea coherente con el proyecto: cabecera opcional igual a las
-    etiquetas definidas, mismo número de columnas en cada fila de datos y sin celdas vacías.
-
-    Returns
-    -------
-    (data_rows, None) si es válido, o (None, mensaje de error).
-    """
     expected = list(in_features) + list(out_features)
     n = len(expected)
 
@@ -139,8 +131,6 @@ def _append_data_rows(dest_path: Path, data_rows: list[list[str]]) -> None:
 
 
 class AddDatasetDialog(BaseDialog):
-    """Diálogo para elegir un nodo del proyecto y añadir filas desde un archivo .csv."""
-
     def __init__(self, parent, nodes: list, project: dict):
         super().__init__(parent, "Añadir dataset")
         utils.get_style()

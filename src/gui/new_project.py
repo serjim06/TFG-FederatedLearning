@@ -98,7 +98,6 @@ class NewProject(ttk.Frame):
         self.scrollable_frame.grid(row=0, column=0, sticky="nsew")
         self.scrollable_frame.columnconfigure(0, weight=1)
 
-        # ---------- Nombre ----------
         ttk.Label(self.scrollable_frame.inner, text="Nombre:", background="#eef4fb").grid(row=row, column=0, sticky="w")
         row += 1
 
@@ -106,7 +105,6 @@ class NewProject(ttk.Frame):
         self.name_entry.grid(row=row, column=0, sticky="ew", pady=(0, 10))
         row += 1
 
-        # ---------- Descripción ----------
         ttk.Label(self.scrollable_frame.inner, text="Descripción:", background="#eef4fb").grid(row=row, column=0, sticky="w")
         row += 1
 
@@ -114,7 +112,6 @@ class NewProject(ttk.Frame):
         self.description_text.grid(row=row, column=0, sticky="ew", pady=(0, 10))
         row += 1
 
-        # ---------- Modelo ----------
         self.model_frame = ttk.Frame(self.scrollable_frame.inner, height=2, border=0.5, relief="solid")
         self.model_frame.grid(row=row, column=0, sticky="ew", pady=(0, 10))
         row += 1
@@ -126,7 +123,6 @@ class NewProject(ttk.Frame):
         self.model_select_btn = ttk.Button(self.model_frame, text="Seleccionar", command=self._select_model, style="Sec.TButton")
         self.model_select_btn.pack(side="right", padx=10, pady=5)
 
-        # ---------- Tipo de tarea ----------
         self.task_type_label = ttk.Label(
             self.scrollable_frame.inner,
             text="Tipo de tarea:",
@@ -152,7 +148,6 @@ class NewProject(ttk.Frame):
             "Si el modelo declara el tipo en get_features() (metadata.type), se rellena solo.",
         )
 
-        # ---------- Función de pérdida ----------
         self.loss_label = ttk.Label(
             self.scrollable_frame.inner,
             text="Función de pérdida:",
@@ -176,8 +171,6 @@ class NewProject(ttk.Frame):
             text="Función de pérdida compatible con el tipo de tarea (implementación PyTorch en el nodo).",
         )
 
-        # ---------- Parámetros ----------
-
         self.params_button = tk.Label(
             self.scrollable_frame.inner, text="▶ Parámetros",
             bg="#eef4fb",
@@ -192,7 +185,6 @@ class NewProject(ttk.Frame):
         self.params_frame.grid(row=row, column=0, sticky="ew", padx=15)
         row += 1
 
-        # --- Optimizer ---
         self.opt = ttk.Label(self.params_frame, text="Optimizer:", background="#eef4fb", cursor="question_arrow")
         self.opt.grid(
             row=0, column=0, sticky="w"
@@ -208,8 +200,6 @@ class NewProject(ttk.Frame):
         
         ToolTip(self.opt, text="Selecciona el optimizador que se utilizará durante el entrenamiento del modelo.")
 
-        # --- Aggregation Strategy ---
-
         self.agg_lb = ttk.Label(self.params_frame, text="Aggregation strategy:", style=FORM_LABEL, cursor="question_arrow")
         self.agg_lb.grid(
             row=2, column=0, sticky="w"
@@ -221,9 +211,7 @@ class NewProject(ttk.Frame):
         self.aggregation_cb.set("fed_avg")
         
         ToolTip(self.agg_lb, text="Selecciona la estrategia de agregación que se utilizará para combinar los modelos entrenados por los nodos.")
-        
-        # --- Epochs ---
-        
+
         self.epochs_label = ttk.Label(self.params_frame, text="Epochs:", style=FORM_LABEL, cursor="question_arrow")
         self.epochs_label.grid(
             row=4, column=0, sticky="w"
@@ -241,8 +229,6 @@ class NewProject(ttk.Frame):
 
         ToolTip(self.epochs_label, text="Número de veces que el modelo verá todo el conjunto de datos durante el entrenamiento.")
 
-        # --- Validation Split ---
-        
         self.val_split_label = ttk.Label(self.params_frame, text="Validation split:", style=FORM_LABEL, cursor="question_arrow")
         self.val_split_label.grid(
             row=6, column=0, sticky="w"
@@ -261,9 +247,7 @@ class NewProject(ttk.Frame):
         self.validation_split.grid(row=7, column=0, sticky="ew", pady=(0, 5))
         
         ToolTip(self.val_split_label, text="Proporción del conjunto de datos que se utilizará para la validación durante el entrenamiento.")
-        
-        # ---- Batch Size ----
-        
+
         self.batch_frame = ttk.Frame(self.params_frame)
         self.batch_frame.grid(row=8, column=0, sticky="ew")
         
@@ -294,9 +278,8 @@ class NewProject(ttk.Frame):
         self.batch_size.grid(row=9, column=0, sticky="ew", pady=(0, 5))
         
         ToolTip(self.batch_size_label, text="Número de muestras que se procesan antes de actualizar el modelo durante el entrenamiento.\nUn tamaño de batch más grande puede acelerar el entrenamiento, pero también requiere más memoria.")
-        ToolTip(self.warning_label, text="Advertencia: Un tamaño de batch muy grande puede causar problemas de memoria en nodos con recursos limitados.")        
-        # ---- Fraction Fit ----
-        
+        ToolTip(self.warning_label, text="Advertencia: Un tamaño de batch muy grande puede causar problemas de memoria en nodos con recursos limitados.")
+
         self.fraction_fit_label = ttk.Label(self.params_frame, text="Fraction fit:", style=FORM_LABEL, cursor="question_arrow")
         self.fraction_fit_label.grid(
             row=10, column=0, sticky="w")
@@ -313,9 +296,7 @@ class NewProject(ttk.Frame):
         self.fraction_fit.grid(row=11, column=0, sticky="ew", pady=(0, 5))
         
         ToolTip(self.fraction_fit_label, text="Proporción de nodos participantes que se utilizarán para el entrenamiento en cada ronda.")
-        
-        # ---- Fraction Evaluate ----
-        
+
         self.fraction_evaluate_label = ttk.Label(self.params_frame, text="Fraction evaluate:", style=FORM_LABEL, cursor="question_arrow")
         self.fraction_evaluate_label.grid(
             row=12, column=0, sticky="w")
@@ -332,8 +313,6 @@ class NewProject(ttk.Frame):
         self.fraction_evaluate.grid(row=13, column=0, sticky="ew", pady=(0, 5))
         
         ToolTip(self.fraction_evaluate_label, text="Proporción de nodos participantes que se utilizarán para la evaluación en cada ronda.")
-        
-        # ---- Learning Rate ----
 
         self.learning_rate_label = ttk.Label(self.params_frame, text="Learning rate:", style=FORM_LABEL, cursor="question_arrow")
         self.learning_rate_label.grid(
@@ -352,7 +331,6 @@ class NewProject(ttk.Frame):
         
         ToolTip(self.learning_rate_label, text="Tasa de aprendizaje que determina el tamaño de los pasos que da el optimizador al actualizar los pesos del modelo durante el entrenamiento.")
 
-        # ---------- Nodos ----------
         ttk.Label(self.scrollable_frame.inner, text="Nodos:", background="#eef4fb").grid(
             row=row, column=0, sticky="w", pady=(10, 0)
         )
@@ -385,7 +363,6 @@ class NewProject(ttk.Frame):
             
         
     def _select_model(self):
-        """Selecciona un archivo con un modelo que herede de BaseModel, lo copia a la carpeta del proyecto, y carga sus características de entrada y salida."""
         try:
             ruta_inicial = filedialog.askopenfilename(
                 parent=self,
@@ -418,7 +395,6 @@ class NewProject(ttk.Frame):
             return
                         
     def _copy_model(self, ruta_inicial):
-        """Copia el archivo del modelo seleccionado a la carpeta del proyecto y devuelve la ruta relativa al archivo copiado."""
         base_dir = os.path.join(os.getcwd(), "database", "models", str(uuid.UUID(bytes=self.user_id)))     
         
         nombre_archivo = os.path.basename(ruta_inicial)
@@ -433,7 +409,6 @@ class NewProject(ttk.Frame):
             raise OSError(f"No se pudo copiar el archivo: {str(e)}")
             
     def _load_features(self, clase):
-        """Instancia la clase del modelo y llama a su método get_features() para obtener las características de entrada y salida."""
         modelo = clase()
         required_keys = {"input_features", "output_features"}
         
@@ -591,7 +566,6 @@ class NewProjectDialog(tk.Toplevel):
         
         self.form = NewProject(self, None, user_id)
 
-        # ---------- Botones ----------
         btns = ttk.Frame(self, padding=10)
         btns.grid(row=1, column=0, sticky="ew")
 
@@ -693,7 +667,6 @@ class SeeProjectDialog(tk.Toplevel):
         self.form = NewProject(self, self.project, grid_row=grid_row)
         grid_row += 1
 
-        # ---------- Botones ----------
         btns = ttk.Frame(self, padding=10, style="TFrame")
         btns.grid(row=grid_row, column=0, sticky="ew")
 

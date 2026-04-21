@@ -25,7 +25,6 @@ class BaseListFrame(tk.Frame, ABC):
         self._setup_treeview(columns)
         
     def _setup_toolbox(self):
-        # botones comunes: user, add, delete
         self.toolbox = tk.Frame(self, bg="#eef4fb", relief="raised", bd=2)
         self.toolbox.pack(side="top", fill="x")
         
@@ -33,21 +32,18 @@ class BaseListFrame(tk.Frame, ABC):
         
         self.user_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("user")).resize((24,24)))
         self.add_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("add")).resize((24,24)))
-        self.delete_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("delete")).resize((24,24))) 
-        
-        # ---- USER ----
+        self.delete_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("delete")).resize((24,24)))
+
         self.user_button = ttk.Button(self.toolbox, image=self.user_image, text="", compound="left",
                        command=self._see_account, width=2, style=SEC_BTN_STYLE)
         self.user_button.pack(side="left", padx=5, pady=5)
         self.buttons.append(self.user_button)
-        
-        # ---- ADD ----
+
         self.add_button = ttk.Button(self.toolbox, image=self.add_image, text="", compound="left",
                        command=self._add_item, width=2, style=SEC_BTN_STYLE)
         self.add_button.pack(side="left", padx=5, pady=5)
         self.buttons.append(self.add_button)
-        
-        # ---- DELETE ----
+
         self.delete_button = ttk.Button(self.toolbox, image=self.delete_image, text="", compound="left",
                        command=self._delete_item, width=2, style=SEC_BTN_STYLE)
         self.delete_button.pack(side="left", padx=5, pady=5)
@@ -78,9 +74,8 @@ class BaseListFrame(tk.Frame, ABC):
         self.tree.update_idletasks()
         self.tree.grid(row=0, column=0, sticky="nsew")
             
-        self.tree.bind("<<TreeviewSelect>>", lambda event: 
+        self.tree.bind("<<TreeviewSelect>>", lambda event:
             self._selected_item_changed())
-            #self.delete_button.state(["!disabled"]) if self.tree.selection() else self.delete_button.state(["disabled"]))
 
         scroll_y.config(command=self.tree.yview)
         scroll_y.grid(row=0, column=1, sticky="ns")
@@ -124,7 +119,6 @@ class BaseListFrame(tk.Frame, ABC):
             relative_path = Path(*parts[idx:])
             return f"./{relative_path.as_posix()}"
         else:
-            # Ruta no contiene 'database', devuelve normalizada
             return str(normalized_path)
 
     def _selected_item_changed(self):

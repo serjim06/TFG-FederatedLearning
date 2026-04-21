@@ -149,7 +149,12 @@ class ConfirmResultsFrame (tk.Frame):
 
 
     def _confirm_result(self, row):
-        ### Recupera el último dataset. Si el correspondiente a la ronda actual no existe, lo crea.
+        """
+        Confirms a result for a given row. If there is no last dataset, a new one is created. 
+        If the last dataset is not the current round, it is copied to the current round.
+        Args:
+            row (int): The row index of the result to confirm.
+        """
         path = self._get_last_dataset(row)
                 
         with open(path, "a", encoding="utf-8") as f:

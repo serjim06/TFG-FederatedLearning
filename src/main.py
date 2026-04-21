@@ -23,11 +23,15 @@ class App(tk.Tk):
         self.show_frame("login")
 
     def show_frame(self, name, usuario : User = None):
-        # Limpia el contenedor actual
+        """
+        Shows a specific frame based on the given name.
+        Args:
+            name (str): The name of the frame to show.
+            usuario (User, optional): The user object to pass to the frame. Defaults to None.
+        """
         for widget in self.container.winfo_children():
             widget.destroy()
 
-        # Crea la vista solicitada
         if name == "login":
             self.geometry("400x425")
             frame = login.LoginPanel(self.container, self.show_frame)

@@ -9,7 +9,7 @@ from src.gui import dialogs
 class ModifyPanel(tk.Frame):
     def __init__(self, parent, switch_frame, usuario):
         super().__init__(parent)
-        self.configure(bg="#eef4fb")  # fondo gris suave
+        self.configure(bg="#eef4fb")
         self.switch_frame = switch_frame
         self.usuario = usuario
 
@@ -17,11 +17,9 @@ class ModifyPanel(tk.Frame):
 
         style = utils.get_style()
 
-        # Texto general
         label_font = ("Segoe UI", 17)
         title_font = ("Segoe UI", 22, "bold")
 
-        # Encabezado
         ttk.Label(self, text="Modificar Perfil", font=title_font, background="#eef4fb").grid(
             row=0, column=0, pady=20)
 
@@ -39,20 +37,17 @@ class ModifyPanel(tk.Frame):
         pw_frame = tk.Frame(self, background="#eef4fb")
         pw_frame.grid(row=4, column=0, pady=5)
 
-        # Entry de contraseña
         self.password_entry = ttk.Entry(pw_frame, show="*", style="Custom.TEntry", font=("Segoe UI", 12), width=20)
         self.password_entry.insert(0, self.usuario['password'])
         self.password_entry.pack(side="left", fill="x", expand=True)
 
         self.password_entry.bind("<Return>", lambda e: self._modify())
 
-        # Botón del ojo
         self.show_pw = False
         self.eye_button = tk.Label(pw_frame, text="👁", bg="#ffffff", cursor="hand2")
         self.eye_button.place(relx=1.0, rely=0.5, x=-5, y=0, anchor="e")
         self.eye_button.bind("<Button-1>", lambda e: self._toggle_password())
 
-        # Botón Entrar
         ttk.Button(self, text="Confirmar cambios", style="Accent.TButton", command=self._modify).grid(row=5,column=0,pady=20, ipadx=10, ipady=5)
 
         ttk.Button(self, text="Volver", style="Sec.TButton", command=lambda: self.switch_frame("profile",self.usuario)).grid(row=6,column=0, pady=(5, 10))

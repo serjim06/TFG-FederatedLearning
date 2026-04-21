@@ -1,31 +1,13 @@
-"""
-MLP tabular configurable: las **constantes de configuración** deben coincidir con el CSV
-y con lo que definas al crear el proyecto (``input_features`` / ``output_features``).
-
-Uso típico
----------
-1. Copia este archivo si quieres varias variantes, o edítalo in situ.
-2. Ajusta ``INPUT_FEATURES``, ``OUTPUT_FEATURES``, ``TASK`` y (si clasificas) ``CLASS_LABELS``.
-3. Opcional: ``HIDDEN_SIZES`` y ``DROPOUT`` para más capacidad / regularización.
-4. En la GUI, al crear el proyecto, elige este ``.py`` como modelo: se llamará a
-   ``get_features()`` y las columnas quedarán alineadas con el CSV.
-
-Los pesos entrenados opcionales van en ``<mismo_nombre_base>.pth`` junto al ``.py``.
-"""
+"""MLP tabular; las constantes deben coincidir con el CSV y el proyecto."""
 
 from __future__ import annotations
 
-import os
 from typing import Sequence
 
 import torch
 import torch.nn as nn
 
 from src.models.base_model import BaseModel
-
-# ---------------------------------------------------------------------------
-# Configuración: debe coincidir con las columnas del CSV (cabecera = nombres).
-# ---------------------------------------------------------------------------
 
 INPUT_FEATURES: list[str] = [
     "sepal_length",
@@ -57,8 +39,6 @@ def _n_out() -> int:
 
 
 class TabularMLP(nn.Module):
-    """MLP: n_in → capas ocultas (ReLU, Dropout opcional) → n_out."""
-
     def __init__(
         self,
         n_in: int,
@@ -87,23 +67,15 @@ class TabularMLP(nn.Module):
 
 
 class TabularMlpModel(BaseModel):
-    """Contrato ``BaseModel``: dimensiones derivadas de la configuración del módulo."""
-
     def load_model(self, model_path) -> nn.Module:
         n_in = len(INPUT_FEATURES)
         n_out = _n_out()
-        model = TabularMLP(
+        return TabularMLP(
             n_in=n_in,
             hidden=HIDDEN_SIZES,
             n_out=n_out,
             dropout=DROPOUT,
         )
-        base, _ = os.path.splitext(str(model_path))
-        weights_path = base + ".pth"
-        if os.path.isfile(weights_path):
-            state = torch.load(weights_path, map_location="cpu")
-            model.load_state_dict(state)
-        return model
 
     def get_features(self) -> dict:
         meta: dict = {"type": TASK}

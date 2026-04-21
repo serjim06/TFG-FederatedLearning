@@ -125,7 +125,7 @@ Regresión:
 
 
 def generate_report(project_id, project_name, project_description, num_rounds, project_type, data, path):
-    data = json.loads(data) # loads every training result
+    data = json.loads(data)
 
     if not data or len(data) == 0:
         raise ValueError("No data to generate report")
@@ -137,11 +137,9 @@ def generate_report(project_id, project_name, project_description, num_rounds, p
     styles = getSampleStyleSheet()
     story = []
 
-    # Title
     story.append(Paragraph(f"Reporte de resultados del proyecto {project_name}", styles["Title"]))
     story.append(Spacer(1, 12))
 
-    # Info
     story.append(Paragraph("Información general", styles["Heading1"]))
     story.append(Spacer(1, 6))
     story.append(Paragraph(f"Fecha de generación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["BodyText"]))
@@ -170,7 +168,6 @@ def generate_report(project_id, project_name, project_description, num_rounds, p
     story.append(ListFlowable(config, bulletType="bullet"))
     story.append(Spacer(1, 24))
 
-    # Training results
     story.append(Paragraph("Entrenamientos", styles["Heading1"]))
     story.append(Spacer(1, 6))
 
@@ -200,7 +197,6 @@ def add_training_head(story, idx, train_id, strategy, total_clients, styles):
     story.append(Paragraph(f"Número total de nodos: {len(total_clients)}", styles["BodyText"]))
     story.append(Spacer(1, 6))
 
-    # Nodos
     story.append(Paragraph("Nodos", styles["Heading3"]))
     story.append(Spacer(1, 6))
     nodes = []
@@ -209,7 +205,6 @@ def add_training_head(story, idx, train_id, strategy, total_clients, styles):
     story.append(ListFlowable(nodes, bulletType="bullet"))
     story.append(Spacer(1, 6))
 
-    # Results per round
     story.append(Paragraph("Resultados por ronda", styles["Heading3"]))
     story.append(Spacer(1, 6))
 
@@ -263,7 +258,6 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
     story.append(Paragraph("Matriz de confusión", styles["Heading3"]))
     story.append(Spacer(1, 6))
 
-    # Table with confusion matrix
     table_data = [["Clase"] + classes]
     for i in range(len(classes)):
         row = [classes[i]]
@@ -296,7 +290,6 @@ def generate_classification_report(story, train_id, strategy, total_clients, res
     story.append(table)
     story.append(Spacer(1, 6))
 
-    # Class distribution per node
     story.append(Paragraph("Distribución de clases por nodo", styles["Heading3"]))
     story.append(Spacer(1, 6))
     cols = ["Nodo"] + classes

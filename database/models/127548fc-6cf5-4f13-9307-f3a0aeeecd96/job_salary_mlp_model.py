@@ -8,7 +8,6 @@ En la GUI, métrica del proyecto: ``mean_squared_error`` (regresión).
 
 from __future__ import annotations
 
-import os
 from typing import Sequence
 
 import torch
@@ -16,7 +15,6 @@ import torch.nn as nn
 
 from src.models.base_model import BaseModel
 
-# Coinciden con la salida de ``build_job_salary_splits.py`` (orden de columnas).
 INPUT_FEATURES: list[str] = [
     "job_title",
     "education_level",
@@ -30,9 +28,8 @@ INPUT_FEATURES: list[str] = [
 ]
 OUTPUT_FEATURES: list[str] = ["salary"]
 TASK: str = "regression"
-CLASS_LABELS: list[str] = []  # no usado en regresión
+CLASS_LABELS: list[str] = []
 
-# Coinciden con ``scripts/build_job_salary_splits.py`` (OrdinalEncoder en CSV con texto).
 CATEGORICAL_FEATURES: list[str] = [
     "job_title",
     "education_level",
@@ -84,18 +81,12 @@ class JobSalaryMlpModel(BaseModel):
     def load_model(self, model_path) -> nn.Module:
         n_in = len(INPUT_FEATURES)
         n_out = _n_out()
-        model = JobSalaryMLP(
+        return JobSalaryMLP(
             n_in=n_in,
             hidden=HIDDEN_SIZES,
             n_out=n_out,
             dropout=DROPOUT,
         )
-        base, _ = os.path.splitext(str(model_path))
-        weights_path = base + ".pth"
-        if os.path.isfile(weights_path):
-            state = torch.load(weights_path, map_location="cpu")
-            model.load_state_dict(state)
-        return model
 
     def get_features(self) -> dict:
         return {

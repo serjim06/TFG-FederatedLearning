@@ -5,7 +5,6 @@ from src.models.base_model import BaseModel
 
 class TestModel(BaseModel):
     def load_model(self, model_path):
-        # Red mínima: 2 entradas → 2 clases (compatible con datasets de prueba tipo hola/adios)
         return nn.Sequential(
             nn.Linear(2, 16),
             nn.ReLU(),

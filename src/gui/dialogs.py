@@ -16,11 +16,9 @@ class BaseDialog(tk.Toplevel):
     def __init__(self, parent, title: str = "Dialog"):
         super().__init__(parent)
         self.title(title)
-        # Apply the global style configuration
         utils.get_style()
         self.configure(bg=utils.BG_COLOR)
         self.resizable(False, False)
-        # Make the dialog modal
         self.transient(parent)
         self.grab_set()
         self.focus_set()
@@ -139,7 +137,7 @@ class FederatedRoundsDialog(BaseDialog):
         on_confirm=None,
     ):
         super().__init__(parent, "Entrenamiento federado")
-        self.result = None  # int si OK, None si cancelar (solo sin on_confirm)
+        self.result = None
         self._on_confirm = on_confirm
 
         tk.Label(

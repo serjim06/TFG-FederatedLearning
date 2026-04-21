@@ -16,17 +16,14 @@ class LoginPanel(tk.Frame):
 
         style = utils.get_style()
 
-        # Texto general
         label_font = ("Segoe UI", 12)
         title_font = ("Segoe UI", 22, "bold")
 
-        # ----- Interfaz -----
         ttk.Label(
             self, text="Iniciar Sesión",
             font=title_font, background="#eef4fb", foreground="#1d2d44"
         ).pack(pady=20)
 
-        # Usuario
         ttk.Label(
             self, text="Usuario:",
             font=label_font, background="#eef4fb", foreground="#1d2d44"
@@ -35,7 +32,6 @@ class LoginPanel(tk.Frame):
         self.user_entry = ttk.Entry(self, font=("Segoe UI", 12), style="Custom.TEntry")
         self.user_entry.pack(pady=5, ipadx=50, ipady=5)
 
-        # Contraseña
         ttk.Label(
             self, text="Contraseña:",
             font=label_font, background="#eef4fb", foreground="#1d2d44"
@@ -44,7 +40,6 @@ class LoginPanel(tk.Frame):
         self.password_entry = ttk.Entry(self, show="*", font=("Segoe UI", 12), style="Custom.TEntry")
         self.password_entry.pack(pady=5, ipadx=50, ipady=5)
 
-        # Botón del ojo
         self.show_pw = False
         self.eye_button = tk.Label(
             self.password_entry, text="👁",
@@ -53,14 +48,12 @@ class LoginPanel(tk.Frame):
         self.eye_button.place(relx=1.0, rely=0.5, x=-5, y=0, anchor="e")
         self.eye_button.bind("<Button-1>", lambda e: self._toggle_password())
 
-        # Botón Entrar
         ttk.Button(
             self, text="Iniciar sesión", style="Accent.TButton", command=self._login
         ).pack(pady=20, ipadx=10, ipady=5)
 
         self.password_entry.bind("<Return>", lambda e: self._login())
 
-        # Botones secundarios
         ttk.Button(
             self, text="No tengo cuenta", style="Sec.TButton", command=lambda: switch_frame("register")).pack(pady=(5, 2))
 
@@ -69,7 +62,6 @@ class LoginPanel(tk.Frame):
         
 
     def _toggle_password(self):
-        """Shows or hides the password."""
         if self.show_pw:
             self.password_entry.config(show="*")
             self.show_pw = False

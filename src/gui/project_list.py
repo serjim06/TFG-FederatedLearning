@@ -34,11 +34,9 @@ class ProjectListFrame(BaseListFrame):
             
             self.winfo_toplevel().bind("<Configure>", self._reposition_suggestions)
 
-            # Executor para tareas pesadas sin bloquear la UI
             self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ProjectListWorker")
             self._loading_reason = ""
 
-            # Barra de estado inferior (siempre visible)
             self._status_frame = tk.Frame(self, bg="#e6edf7", bd=1, relief="solid")
             self._status_frame.pack(side="bottom", fill="x")
 
@@ -71,13 +69,11 @@ class ProjectListFrame(BaseListFrame):
         except Exception:
             pass
 
-        # forzar render del estado antes de continuar
         try:
             self.update_idletasks()
         except Exception:
             pass
 
-        # evitar interacción mientras carga
         try:
             self.metrics_button.state(["disabled"])
             self.config_button.state(["disabled"])
@@ -95,7 +91,6 @@ class ProjectListFrame(BaseListFrame):
         except Exception:
             pass
 
-        # restaurar interacción (botones según selección actual)
         try:
             self.tree.configure(selectmode="extended")
         except Exception:
@@ -132,7 +127,6 @@ class ProjectListFrame(BaseListFrame):
             pass
 
     def _poll_federated_queue(self) -> None:
-        """Procesa mensajes del worker en el hilo principal (Tkinter no es thread-safe)."""
         if not self._federated_running:
             return
         try:
@@ -143,7 +137,7 @@ class ProjectListFrame(BaseListFrame):
                     _, cur, total, msg, eta = item
                     self._set_federated_status(cur, total, msg, eta)
                 elif kind == "success":
-                    _, merged, total_sec, prev, project_id_b = item
+                    _, merged, total_sec, prev, project_id_b, fed_rounds = item
                     self._federated_running = False
                     upd: dict = {"id": project_id_b, "training_results": merged}
                     if not prev.get("type"):
@@ -153,7 +147,7 @@ class ProjectListFrame(BaseListFrame):
                             else "classification"
                         )
                     cur_data_round = int(prev.get("training_round") or 0)
-                    upd["training_round"] = cur_data_round + 1
+                    upd["training_round"] = cur_data_round + int(fed_rounds) + 1
                     dbcon.command("update", "projects", upd)
                     self._hide_loading()
                     dialogs.InfoDialog(
@@ -179,7 +173,6 @@ class ProjectListFrame(BaseListFrame):
         self.after(50, self._poll_federated_queue)
 
     def _predict(self) -> None:
-        """Abre el diálogo de entrada y ejecuta la predicción en segundo plano."""
         seleccionado = self.tree.selection()
         if not seleccionado:
             dialogs.InfoDialog(
@@ -234,7 +227,6 @@ class ProjectListFrame(BaseListFrame):
     def _prediction_outputs_for_pending(
         self, prediction_result: Any, output_features: list[str]
     ) -> list[Any]:
-        """Normaliza la salida de `predict` al formato de columnas de salida del proyecto."""
         if not output_features:
             return []
 
@@ -354,7 +346,6 @@ class ProjectListFrame(BaseListFrame):
         future.add_done_callback(_done_callback)
 
     def _play_federated_training(self) -> None:
-        """Abre el diálogo de rondas sin bloquear el bucle (callback al confirmar)."""
         if self._federated_running:
             return
         seleccionado = self.tree.selection()
@@ -372,13 +363,11 @@ class ProjectListFrame(BaseListFrame):
         project_id = uuid.UUID(values[0]).bytes
 
         def on_confirm(num_rounds: int) -> None:
-            # ``FederatedRoundsDialog`` ya programa esto en el hilo principal.
             self._start_federated_job(project_id, num_rounds)
 
         FederatedRoundsDialog(self, default_rounds=5, on_confirm=on_confirm)
 
     def _start_federated_job(self, project_id: bytes, num_rounds: int) -> None:
-        """Lanza el entrenamiento en el executor y el sondeo de cola en el hilo UI."""
         if self._federated_running:
             return
         try:
@@ -430,6 +419,7 @@ class ProjectListFrame(BaseListFrame):
                         out["total_time_seconds"],
                         payload[0],
                         pid,
+                        rounds,
                     )
                 )
             except Exception as e:
@@ -515,7 +505,7 @@ class ProjectListFrame(BaseListFrame):
     def _create_suggestion_popup(self):
         self.suggestion_popup = tk.Toplevel(self)
         self.suggestion_popup.withdraw()
-        self.suggestion_popup.overrideredirect(True)  # sin bordes
+        self.suggestion_popup.overrideredirect(True)
         self.suggestion_popup.attributes("-topmost", True)
 
         self.suggestion_list = tk.Listbox(
@@ -584,7 +574,7 @@ class ProjectListFrame(BaseListFrame):
         if not projects:
             return
 
-        self.tree.delete(*self.tree.get_children()) #Elimina los proyectos insertados
+        self.tree.delete(*self.tree.get_children())
         
         suggestions = []
         
@@ -644,7 +634,7 @@ class ProjectListFrame(BaseListFrame):
             if word not in suggestions:
                 suggestions.append((word, similarity))
         
-        sorted_suggestions = sorted(suggestions, reverse = True, key=lambda suggestion: suggestion[1]) #orders by similarity
+        sorted_suggestions = sorted(suggestions, reverse = True, key=lambda suggestion: suggestion[1])
             
         return [suggestion[0] for suggestion in sorted_suggestions[:max_suggestions]]
 
@@ -743,7 +733,6 @@ class ProjectListFrame(BaseListFrame):
                         try:
                             self.after(0, _finish_on_ui_thread)
                         except Exception:
-                            # si el frame ya no existe
                             pass
 
                     future.add_done_callback(_done_callback)
@@ -762,7 +751,6 @@ class ProjectListFrame(BaseListFrame):
         values = self.tree.item(item_id, "values")
         project_id = uuid.UUID(values[0]).bytes
 
-        # Elegir destino del PDF
         path = filedialog.asksaveasfilename(
             defaultextension=".pdf",
             filetypes=[("PDF files", "*.pdf")],
@@ -778,11 +766,9 @@ class ProjectListFrame(BaseListFrame):
                 dialogs.InfoDialog(self, "Error", "No se han encontrado datos del proyecto para generar el reporte.", "error")
                 return
 
-            # Informar al usuario y lanzar generación en segundo plano
             self._show_loading("Generando reporte…")
 
             def _compute(proj, output_path):
-                # Se ejecuta en un hilo: no tocar la UI aquí
                 training_data = proj[0]["training_results"]
                 project_type = proj[0]["type"]
                 num_rounds = proj[0]["training_round"]
@@ -801,7 +787,6 @@ class ProjectListFrame(BaseListFrame):
             def _done_callback(f):
                 def _finish_on_ui_thread():
                     try:
-                        # Propagará cualquier excepción levantada en el hilo
                         f.result()
                         self._hide_loading()
                         dialogs.InfoDialog(self, "Éxito", "Reporte generado correctamente.", "info")
@@ -812,7 +797,6 @@ class ProjectListFrame(BaseListFrame):
                 try:
                     self.after(0, _finish_on_ui_thread)
                 except Exception:
-                    # El frame puede haberse destruido
                     pass
 
             future.add_done_callback(_done_callback)
@@ -849,8 +833,7 @@ class ProjectListFrame(BaseListFrame):
                     dbcon.command("delete", "projects", {"id": project_id})
                 except (ValueError, DatabaseError) as e:
                     dialogs.InfoDialog(self, "Error", str(e), "error")
-                    #return
-                
+
             self._update_tree_after_delete(seleccionado, canceled)
             dialogs.InfoDialog(self, "Información", "Proyecto(s) eliminado(s) correctamente.", "info")
         else:

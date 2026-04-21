@@ -20,7 +20,6 @@ from torch.utils.data import DataLoader, TensorDataset
 from src.db import dbcon
 from src.projects.projects import cargar_modulo, verificar_modulo
 
-# Raíz de datasets (misma convención que ``src.gui.add_dataset``)
 DATASETS_ROOT = Path(__file__).resolve().parent.parent.parent / "database" / "datasets"
 
 
@@ -37,6 +36,87 @@ def _resolve_model_path(model_path: str) -> str:
     return os.path.normpath(os.path.join(os.getcwd(), p))
 
 
+def _parse_training_results_entries(project_row: dict) -> list[dict[str, Any]]:
+    raw = project_row.get("training_results")
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        if not raw.strip():
+            return []
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
+    elif isinstance(raw, list):
+        data = raw
+    else:
+        return []
+    return data if isinstance(data, list) else []
+
+
+def latest_train_id_from_project(project_row: dict) -> Optional[str]:
+    entries = _parse_training_results_entries(project_row)
+    if not entries:
+        return None
+    last = entries[-1]
+    if not isinstance(last, dict):
+        return None
+    tid = last.get("train_id")
+    if isinstance(tid, str) and tid.strip():
+        return tid.strip()
+    return None
+
+
+def weights_path_for_train_id(model_path: str, train_id: str) -> str:
+    base = Path(_resolve_model_path(model_path))
+    return str(base.parent / f"{train_id}.pth")
+
+
+def persist_state_dict_for_train(
+    model_path: str,
+    train_id: str,
+    state_dict: dict[str, torch.Tensor],
+    project_row: dict[str, Any],
+) -> None:
+    tid = train_id.strip()
+    if not tid:
+        return
+    resolved = Path(_resolve_model_path(model_path))
+    stale = latest_train_id_from_project(project_row)
+    if stale and stale != tid:
+        prev_path = weights_path_for_train_id(model_path, stale)
+        if os.path.isfile(prev_path):
+            os.remove(prev_path)
+    legacy = str(resolved.with_suffix(".pth"))
+    if os.path.isfile(legacy):
+        os.remove(legacy)
+    out = weights_path_for_train_id(model_path, tid)
+    if os.path.isfile(out):
+        os.remove(out)
+    to_save = {k: v.detach().cpu() for k, v in state_dict.items()}
+    torch.save(to_save, out)
+
+
+def load_trained_weights_into(
+    net: nn.Module, project_row: dict, model_path: str
+) -> bool:
+    tid = latest_train_id_from_project(project_row)
+    if tid:
+        wp = weights_path_for_train_id(model_path, tid)
+        if os.path.isfile(wp):
+            state = torch.load(wp, map_location="cpu")
+            if isinstance(state, dict):
+                net.load_state_dict(state)
+                return True
+    legacy = str(Path(_resolve_model_path(model_path)).with_suffix(".pth"))
+    if os.path.isfile(legacy):
+        state = torch.load(legacy, map_location="cpu")
+        if isinstance(state, dict):
+            net.load_state_dict(state)
+            return True
+    return False
+
+
 def _fetch_node_row(node_id: bytes) -> dict:
     rows = dbcon.command("select", "nodes", {"id": node_id})
     if not rows:
@@ -45,7 +125,7 @@ def _fetch_node_row(node_id: bytes) -> dict:
 
 
 def _fetch_project_for_node(node_id: bytes) -> dict:
-    """Obtiene la fila del proyecto asociado al nodo (vía ``nodes.project_id``)."""
+    """Obtiene la fila del proyecto asociado al nodo"""
     n = _fetch_node_row(node_id)
     pid = n.get("project_id")
     if pid is None or pid == "":
@@ -80,10 +160,6 @@ def resolve_task(
     metadata: Optional[dict[str, Any]],
     metrics: str,
 ) -> str:
-    """
-    Prioridad: ``parameters.task_type`` (GUI/BD) > ``metadata.type`` (``get_features``)
-    > heurística por nombre de la función de pérdida.
-    """
     p = params or {}
     raw = p.get("task_type")
     if isinstance(raw, str) and raw.strip():
@@ -106,7 +182,6 @@ def resolve_task(
 def _parse_header_and_rows(
     path: Path, expected_cols: list[str]
 ) -> tuple[bool, list[list[str]]]:
-    """Devuelve (tiene_cabecera_con_etiquetas, filas_datos)."""
     with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
         rows = list(csv.reader(f))
     while rows and not any((c or "").strip() for c in rows[-1]):
@@ -321,7 +396,6 @@ def _load_xy_from_csv(
             y = np.stack(y_blocks, axis=1)
         return X, y, None
 
-    # Clasificación: una columna de salida típica
     if n_out != 1:
         raise NotImplementedError(
             "La carga automática de CSV solo soporta clasificación con una columna de salida."
@@ -350,7 +424,6 @@ def _make_loaders(
 ) -> tuple[DataLoader, DataLoader]:
     rng = np.random.RandomState(seed)
     if len(X) < 2:
-        # Un solo ejemplo: no hay validación
         ds = TensorDataset(torch.from_numpy(X), torch.from_numpy(y))
         loader = DataLoader(ds, batch_size=max(1, min(batch_size, len(X))), shuffle=False)
         return loader, loader
@@ -438,7 +511,6 @@ def _compute_batch_loss(
         o = o.flatten()
         return criterion(o, y)
 
-    # Clasificación multiclase
     if yb.dtype != torch.long:
         yb = yb.long()
     return criterion(out, yb.squeeze())
@@ -780,11 +852,6 @@ def _format_prediction(
 
 
 def flower_local_config(project_row: dict) -> dict[str, Any]:
-    """
-    Parámetros locales útiles para alinear con ``config`` en Flower (p. ej. simulaciones).
-
-    No ejecuta Flower; solo devuelve un diccionario coherente con ``Project.parameters``.
-    """
     params = project_row["parameters"]
     if isinstance(params, str):
         params = json.loads(params)
@@ -848,6 +915,7 @@ def train(
     )
 
     net = model.load_model(model_path)
+    load_trained_weights_into(net, project_row, model_path)
     device = _get_device()
     crit = _criterion(metrics, task)
     t0 = time.perf_counter()
@@ -882,6 +950,9 @@ def train(
         elapsed_seconds=elapsed,
         global_loss=global_loss,
         train_history=hist.get("history"),
+    )
+    persist_state_dict_for_train(
+        model_path, training_results_entry["train_id"], net.state_dict(), project_row
     )
 
     return {
@@ -944,6 +1015,7 @@ def evaluate(
     )
 
     net = model.load_model(model_path)
+    load_trained_weights_into(net, project_row, model_path)
     device = _get_device()
     crit = _criterion(metrics, task)
     t0 = time.perf_counter()
@@ -1005,6 +1077,7 @@ def predict(
     ) else project_row["input_features"]
 
     net = model.load_model(model_path)
+    load_trained_weights_into(net, project_row, model_path)
     device = _get_device()
     net = net.to(device)
     net.eval()
@@ -1042,13 +1115,10 @@ class Node:
         }
 
     def train(self, project: Optional[dict] = None, **kwargs: Any) -> dict[str, Any]:
-        """Delega en :func:`train`."""
         return train(self, project=project, **kwargs)
 
     def evaluate(self, project: Optional[dict] = None, **kwargs: Any) -> dict[str, Any]:
-        """Delega en :func:`evaluate`."""
         return evaluate(self, project=project, **kwargs)
 
     def predict(self, input_data: Any, project: Optional[dict] = None) -> Any:
-        """Delega en :func:`predict`."""
         return predict(self, input_data, project=project)

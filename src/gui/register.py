@@ -15,24 +15,19 @@ class RegisterFrame(tk.Frame):
 
         style = utils.get_style()
 
-        # Texto general
         label_font = ("Segoe UI", 12)
         title_font = ("Segoe UI", 22, "bold")
 
-        # Encabezado
         ttk.Label(self, text="Crear Cuenta", font=title_font, background="#eef4fb").pack(pady=5)
 
-        # Usuario
         ttk.Label(self, text="Usuario:", font=label_font, background="#eef4fb").pack(pady=(5, 0))
         self.user_entry = ttk.Entry(self, font=("Segoe UI", 12), style="Custom.TEntry")
         self.user_entry.pack(pady=5, ipadx=50, ipady=5)
 
-        # Contraseña
         ttk.Label(self, text="Contraseña:", font=("Segoe UI", 12), background="#eef4fb").pack(pady=(10, 0))
         self.pass_entry = ttk.Entry(self, show="*", font=("Segoe UI", 12), style="Custom.TEntry")
         self.pass_entry.pack(pady=5, ipadx=50, ipady=5)
 
-        # Confirmar contraseña
         ttk.Label(self, text="Confirmar Contraseña:", font=("Segoe UI", 12), background="#eef4fb").pack(pady=(10, 0))
         self.conf_entry = ttk.Entry(self, show="*", font=("Segoe UI", 12), style="Custom.TEntry")
         self.conf_entry.pack(pady=5, ipadx=50, ipady=5)

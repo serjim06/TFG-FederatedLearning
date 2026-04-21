@@ -14,38 +14,17 @@ from collections import Counter
 from src.utils import utils
 from src.gui.dialogs import InfoDialog
 
-"""
-
-Clase para mostrar las métricas del proyecto:
-
-- Scroll X
-
-- Parámetros de entrenamiento X
-
-- Métricas por ronda (loss, r^2/f1) X
-
-- Histograma de cambio de distribución de clases en cada nodo (porque puede cambiar el dataset) --
-
-- Gráfico en el que se muestra en el fondo un área sombreada que muestra cómo crece el número de muestras, y al frente la métrica de evaluación
-  (por ejemplo, MAE, R^2...) para poder ver si afecta el número de muestras a la métrica. X
-
-- Regresion: (Scatter plot,resiguals histogram)/Classification: distribution plot X
-
-- Gráfico de barras apiladas que muestre muestras originales, añadidas en esa ronda y modificadas o corregidas X
-
-- Participación de nodos (diagrama circular) X
-
-- Tiempo por ronda X
-
-"""
-
 def get_metrics_per_round(training_data, project_type):
-    """
-    Lista de dicts por ronda federada (loss, participation, f1 o r2, etc.).
+    """Get the metrics per round for a given training data and project type.
+    
+    Args:
+        training_data (list): The training data.
+        project_type (str): The type of project.
 
-    Para regresión, ``_get_regression_metrics`` también devuelve agregados y_true/y_pred;
-    usa ``get_regression_metrics_bundle`` si los necesitas para gráficos.
+    Returns:
+        list: The metrics per round.
     """
+    
     if project_type == "classification":
         return _get_classification_metrics(training_data)
     metrics, _, _ = _get_regression_metrics(training_data)
@@ -53,7 +32,6 @@ def get_metrics_per_round(training_data, project_type):
 
 
 def get_regression_metrics_bundle(training_data):
-    """Métricas por ronda y vectores agregados para scatter (solo regresión)."""
     return _get_regression_metrics(training_data)
 
 def _get_classification_metrics(training_data):
@@ -97,7 +75,6 @@ def _get_classification_metrics(training_data):
 
 
 def _round_indices_for_metrics(metrics: list) -> list[int]:
-    """Índices de ronda 1..n (las entradas de métricas por ronda no llevan ``round``)."""
     return list(range(1, len(metrics) + 1))
 
 def get_datasets_changes(nodes):
@@ -174,7 +151,6 @@ def _get_files_changes(files):
             lines_curr = f.readlines()
             
             changes[i] = {"round": sorted_files[i][0], "added": [], "length": len(lines_curr)-1}
-            # Compara por frecuencias para detectar altas de filas duplicadas.
             prev_counter = Counter(line.strip() for line in lines_prev[1:])
             curr_counter = Counter(line.strip() for line in lines_curr[1:])
 
@@ -286,7 +262,6 @@ class ProjectMetricsDialog(tk.Toplevel):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def _build_params(self):
-        # Panel/card para que los parámetros se lean mejor y mantengan el estilo del proyecto.
         for widget in self.params_frame.winfo_children():
             widget.destroy()
 
@@ -580,21 +555,18 @@ class ProjectMetricsDialog(tk.Toplevel):
         color_part = '#7F8C8D'
         ax1.set_xlabel('Ronda Federada')
         ax1.set_ylabel('Datos en datasets', color=color_data_line)
-        
-        # Volumen de datos
+
         ax1.fill_between(rounds_data, freq, color=color_data, alpha=0.35, label='Volumen Datos', zorder=1)
         ax1.plot(rounds_data, freq, color=color_data_line, linewidth=1.8, marker='o', zorder=2)
         ax1.tick_params(axis='y', labelcolor=color_data_line)
         ax1.grid(True, linestyle=':', alpha=0.3)
 
-        # Loss (eje derecho)
         ax2 = ax1.twinx()
         color_loss = '#E67E22'
         ax2.set_ylabel('Loss', color=color_loss)
         ax2.plot(rounds_metrics, loss, color=color_loss, marker='o', label='Loss', linewidth=2.5, zorder=10)
         ax2.tick_params(axis='y', labelcolor=color_loss)
 
-        # Participación (tercer eje derecho, desplazado)
         ax3 = ax1.twinx()
         ax3.spines['right'].set_position(('outward', 42))
         ax3.set_ylim(0, 1)
