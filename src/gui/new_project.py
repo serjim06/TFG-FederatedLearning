@@ -207,7 +207,7 @@ class NewProject(ttk.Frame):
 
         self.aggregation_cb = ttk.Combobox(
             self.params_frame,
-            values=["fed_avg", "fed_med", "fed_sum", "fed_weighted"],
+            values=["fed_avg", "fed_med", "fed_nova", "fed_sum", "fed_weighted"],
             state="readonly",
         )
         self.aggregation_cb.grid(row=3, column=0, sticky="ew", pady=(0, 5))

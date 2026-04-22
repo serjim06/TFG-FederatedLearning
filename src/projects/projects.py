@@ -38,6 +38,7 @@ class Project:
             aggregation_strategy (str): project aggregation strategy. Possible values:
                 - "fed_avg": Federated Averaging
                 - "fed_med": Federated Median (Flower FedMedian)
+                - "fed_nova": Federated Nova (Flower FedNova)
                 - "fed_prox": Federated Proximal
             initial_nodes (list): project initial nodes
             metrics (string): función de pérdida del proyecto. Posibles valores:

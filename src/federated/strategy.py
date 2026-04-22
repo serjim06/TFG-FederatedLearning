@@ -7,7 +7,7 @@ import numpy as np
 from flwr.common import Scalar, parameters_to_ndarrays
 from flwr.common.typing import FitRes
 from flwr.server.client_proxy import ClientProxy
-from flwr.server.strategy import FedAvg, FedMedian, Strategy
+from flwr.server.strategy import FedAvg, FedMedian, FedNova, Strategy
 
 ProgressCallback = Optional[
     Callable[[int, int, str, Optional[float]], None]
@@ -146,6 +146,28 @@ class TrackingFedMedian(_FedStrategyRoundTracking, FedMedian):
         self._t_round_start: float | None = None
 
 
+class TrackingFedNova(_FedStrategyRoundTracking, FedNova):
+    """Flower FedNova with per-round global weight snapshots and round timing."""
+
+    def __init__(
+        self,
+        *,
+        snapshots: list[list[np.ndarray]],
+        round_times: list[float],
+        on_progress: ProgressCallback,
+        num_rounds: int,
+        t_run_start: float,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._snapshots = snapshots
+        self._round_times = round_times
+        self._on_progress = on_progress
+        self._num_rounds = num_rounds
+        self._t_run_start = t_run_start
+        self._t_round_start: float | None = None
+
+
 def create_tracking_strategy(
     aggregation_strategy: str | None,
     *,
@@ -158,13 +180,14 @@ def create_tracking_strategy(
 ) -> Strategy:
     """Build a Flower server strategy that aggregates client updates and records state each round.
 
-    The returned instance subclasses Flower's ``FedAvg`` or ``FedMedian`` and mixes in
+    The returned instance subclasses Flower's ``FedAvg``, ``FedMedian`` or ``FedNova`` and mixes in
     round timing plus a copy of the global parameters after every successful ``aggregate_fit``
     into ``snapshots`` (one list of weight arrays per federated round).
 
     Selection rule (case-insensitive, surrounding whitespace ignored):
 
     * ``fed_med`` → ``TrackingFedMedian`` (coordinate-wise median).
+    * ``fed_nova`` → ``TrackingFedNova`` (normalized averaging).
     * Any other value, including ``None`` or empty string → ``TrackingFedAvg``
       (sample-weighted average).
 
@@ -200,4 +223,6 @@ def create_tracking_strategy(
     }
     if key == "fed_med":
         return TrackingFedMedian(**tracking_kwargs, **flower_kwargs)
+    if key == "fed_nova":
+        return TrackingFedNova(**tracking_kwargs, **flower_kwargs)
     return TrackingFedAvg(**tracking_kwargs, **flower_kwargs)
