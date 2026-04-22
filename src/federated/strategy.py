@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import time
+import json
 from typing import Any, Callable, Optional
 
 import numpy as np
-from flwr.common import Scalar, parameters_to_ndarrays
+from flwr.common import FitIns, Scalar, parameters_to_ndarrays
 from flwr.common.typing import FitRes
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg, FedMedian, FedNova, Strategy
@@ -168,6 +169,120 @@ class TrackingFedNova(_FedStrategyRoundTracking, FedNova):
         self._t_round_start: float | None = None
 
 
+class TrackingScaffold(_FedStrategyRoundTracking, FedAvg):
+    """Flower SCAFFOLD-like strategy with per-round snapshots and timing."""
+
+    _param_keys: list[str]
+    _local_epochs: int
+    _learning_rate: float
+    _total_clients: int
+    _c_global: list[np.ndarray] | None
+    _c_clients: dict[str, list[np.ndarray]]
+
+    def __init__(
+        self,
+        *,
+        snapshots: list[list[np.ndarray]],
+        round_times: list[float],
+        on_progress: ProgressCallback,
+        num_rounds: int,
+        t_run_start: float,
+        param_keys: list[str],
+        local_epochs: int,
+        learning_rate: float,
+        total_clients: int,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._snapshots = snapshots
+        self._round_times = round_times
+        self._on_progress = on_progress
+        self._num_rounds = num_rounds
+        self._t_run_start = t_run_start
+        self._t_round_start = None
+        self._param_keys = list(param_keys)
+        self._local_epochs = max(1, int(local_epochs))
+        self._learning_rate = float(learning_rate)
+        self._total_clients = max(1, int(total_clients))
+        self._c_global = None
+        self._c_clients = {}
+
+    @staticmethod
+    def _serialize_arrays(arrays: list[np.ndarray]) -> str:
+        return json.dumps([a.astype(np.float32).tolist() for a in arrays], ensure_ascii=False)
+
+    @staticmethod
+    def _deserialize_arrays(raw: Scalar | None) -> list[np.ndarray] | None:
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        data = json.loads(raw)
+        if not isinstance(data, list):
+            return None
+        out: list[np.ndarray] = []
+        for x in data:
+            out.append(np.asarray(x, dtype=np.float32))
+        return out
+
+    def _ensure_global_cv(self, parameters: Any) -> None:
+        if self._c_global is not None:
+            return
+        nds = parameters_to_ndarrays(parameters)
+        self._c_global = [np.zeros_like(np.asarray(a, dtype=np.float32)) for a in nds]
+
+    def configure_fit(
+        self,
+        server_round: int,
+        parameters: Any,
+        client_manager: Any,
+    ) -> list[tuple[ClientProxy, FitIns]]:
+        pairs = super().configure_fit(server_round, parameters, client_manager)
+        self._ensure_global_cv(parameters)
+        c_global = self._c_global or []
+        c_global_json = self._serialize_arrays(c_global)
+        for client_proxy, fit_ins in pairs:
+            cid = client_proxy.cid
+            c_client = self._c_clients.get(cid)
+            if c_client is None:
+                c_client = [np.zeros_like(a) for a in c_global]
+                self._c_clients[cid] = c_client
+            cfg = dict(fit_ins.config)
+            cfg["scaffold_enabled"] = 1.0
+            cfg["scaffold_param_keys"] = json.dumps(self._param_keys, ensure_ascii=False)
+            cfg["scaffold_c_global"] = c_global_json
+            cfg["scaffold_c_client"] = self._serialize_arrays(c_client)
+            cfg["scaffold_local_epochs"] = float(self._local_epochs)
+            cfg["scaffold_learning_rate"] = float(self._learning_rate)
+            fit_ins.config = cfg
+        return pairs
+
+    def aggregate_fit(
+        self,
+        server_round: int,
+        results: list[tuple[ClientProxy, FitRes]],
+        failures: list[tuple[ClientProxy, FitRes] | BaseException],
+    ) -> tuple[Any, dict[str, Scalar]]:
+        valid = [
+            (proxy, fit_res)
+            for proxy, fit_res in results
+            if fit_res.metrics.get("scaffold_ci_new") is not None
+        ]
+        if valid and self._c_global is not None:
+            deltas = [np.zeros_like(a) for a in self._c_global]
+            for client_proxy, fit_res in valid:
+                cid = client_proxy.cid
+                old_ci = self._c_clients.get(cid)
+                new_ci = self._deserialize_arrays(fit_res.metrics.get("scaffold_ci_new"))
+                if old_ci is None or new_ci is None or len(new_ci) != len(self._c_global):
+                    continue
+                self._c_clients[cid] = [np.asarray(a, dtype=np.float32) for a in new_ci]
+                for j in range(len(deltas)):
+                    deltas[j] += self._c_clients[cid][j] - old_ci[j]
+            scale = 1.0 / float(self._total_clients)
+            for j in range(len(self._c_global)):
+                self._c_global[j] = self._c_global[j] + deltas[j] * scale
+        return super().aggregate_fit(server_round, results, failures)
+
+
 def create_tracking_strategy(
     aggregation_strategy: str | None,
     *,
@@ -176,18 +291,24 @@ def create_tracking_strategy(
     on_progress: ProgressCallback,
     num_rounds: int,
     t_run_start: float,
+    param_keys: list[str] | None = None,
+    local_epochs: int = 1,
+    learning_rate: float = 0.01,
+    total_clients: int = 1,
     **flower_kwargs: Any,
 ) -> Strategy:
     """Build a Flower server strategy that aggregates client updates and records state each round.
 
-    The returned instance subclasses Flower's ``FedAvg``, ``FedMedian`` or ``FedNova`` and mixes in
-    round timing plus a copy of the global parameters after every successful ``aggregate_fit``
-    into ``snapshots`` (one list of weight arrays per federated round).
+    The returned instance subclasses Flower's ``FedAvg``, ``FedMedian`` or ``FedNova``, or
+    uses a SCAFFOLD-compatible variant, and mixes in round timing plus a copy of the global
+    parameters after every successful ``aggregate_fit`` into ``snapshots`` (one list of
+    weight arrays per federated round).
 
     Selection rule (case-insensitive, surrounding whitespace ignored):
 
     * ``fed_med`` → ``TrackingFedMedian`` (coordinate-wise median).
     * ``fed_nova`` → ``TrackingFedNova`` (normalized averaging).
+    * ``fed_scaffold`` → ``TrackingScaffold`` (control variates).
     * Any other value, including ``None`` or empty string → ``TrackingFedAvg``
       (sample-weighted average).
 
@@ -221,8 +342,28 @@ def create_tracking_strategy(
         "num_rounds": num_rounds,
         "t_run_start": t_run_start,
     }
+    if key not in {
+        "",
+        "fed_avg",
+        "fed_med",
+        "fed_nova",
+        "fed_scaffold",
+        "fed_sum",
+        "fed_weighted",
+        "fed_prox",
+    }:
+        raise ValueError(f"Estrategia de agregación no soportada: {aggregation_strategy!r}")
     if key == "fed_med":
         return TrackingFedMedian(**tracking_kwargs, **flower_kwargs)
     if key == "fed_nova":
         return TrackingFedNova(**tracking_kwargs, **flower_kwargs)
+    if key == "fed_scaffold":
+        return TrackingScaffold(
+            **tracking_kwargs,
+            param_keys=list(param_keys or []),
+            local_epochs=local_epochs,
+            learning_rate=learning_rate,
+            total_clients=total_clients,
+            **flower_kwargs,
+        )
     return TrackingFedAvg(**tracking_kwargs, **flower_kwargs)

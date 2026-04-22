@@ -143,7 +143,7 @@ class FederatedRoundsDialog(BaseDialog):
         tk.Label(
             self,
             text=(
-                "Indica cuántas rondas federadas ejecutará el servidor (FedAvg).\n"
+                "Indica cuántas rondas federadas ejecutará el servidor Flower.\n"
                 "En cada ronda se entrenan todos los nodos del proyecto y se agregan los pesos."
             ),
             bg=utils.BG_COLOR,

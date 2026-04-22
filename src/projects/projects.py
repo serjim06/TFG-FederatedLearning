@@ -39,6 +39,7 @@ class Project:
                 - "fed_avg": Federated Averaging
                 - "fed_med": Federated Median (Flower FedMedian)
                 - "fed_nova": Federated Nova (Flower FedNova)
+                - "fed_scaffold": Federated SCAFFOLD
                 - "fed_prox": Federated Proximal
             initial_nodes (list): project initial nodes
             metrics (string): función de pérdida del proyecto. Posibles valores:

@@ -565,6 +565,44 @@ def _train_loop(
     return {"history": history}
 
 
+def _train_loop_scaffold(
+    net: nn.Module,
+    train_loader: DataLoader,
+    *,
+    epochs: int,
+    learning_rate: float,
+    optimizer_name: str,
+    criterion: nn.Module,
+    task: str,
+    metrics: str,
+    device: torch.device,
+    correction_by_param: dict[str, torch.Tensor],
+) -> int:
+    """Entrena con corrección SCAFFOLD en cada paso local."""
+    net = net.to(device)
+    opt = _optimizer(optimizer_name, net.parameters(), learning_rate)
+    steps = 0
+    for _ in range(max(1, int(epochs))):
+        net.train()
+        for xb, yb in train_loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
+            opt.zero_grad()
+            out = net(xb)
+            loss = _compute_batch_loss(out, yb, criterion, task, metrics)
+            loss.backward()
+            for name, param in net.named_parameters():
+                if param.grad is None:
+                    continue
+                corr = correction_by_param.get(name)
+                if corr is None:
+                    continue
+                param.grad = param.grad + corr
+            opt.step()
+            steps += 1
+    return max(1, steps)
+
+
 def _accuracy_batch(
     out: torch.Tensor, yb: torch.Tensor, metrics: str, task: str
 ) -> float:
@@ -612,6 +650,7 @@ def _strategy_display(aggregation: str) -> str:
         "fed_avg": "FedAvg",
         "fed_med": "FedMedian",
         "fed_nova": "FedNova",
+        "fed_scaffold": "Scaffold",
         "fed_sum": "FedSum",
         "fed_weighted": "FedWeighted",
         "fed_prox": "FedProx",

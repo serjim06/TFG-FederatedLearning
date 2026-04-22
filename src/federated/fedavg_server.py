@@ -1,9 +1,6 @@
 """
-Entrenamiento federado con Flower (FedAvg + simulación Ray): los clientes de cada ronda
-se ejecutan en paralelo vía el motor virtual de Flower.
-
-Los resultados (`results_per_round`, métricas finales) mantienen la forma esperada por
-informes y la GUI.
+Entrenamiento federado con Flower y simulación Ray: los clientes de cada ronda se
+ejecutan en paralelo vía el motor virtual de Flower.
 """
 
 from __future__ import annotations
@@ -106,6 +103,22 @@ def _ndarrays_to_state_dict(
     return {k: torch.from_numpy(arr) for k, arr in zip(keys, ndarrays)}
 
 
+def _json_to_ndarrays(raw: Any) -> list[np.ndarray]:
+    if not isinstance(raw, str) or not raw.strip():
+        return []
+    data = json.loads(raw)
+    if not isinstance(data, list):
+        return []
+    out: list[np.ndarray] = []
+    for x in data:
+        out.append(np.asarray(x, dtype=np.float32))
+    return out
+
+
+def _ndarrays_to_json(arrays: list[np.ndarray]) -> str:
+    return json.dumps([a.astype(np.float32).tolist() for a in arrays], ensure_ascii=False)
+
+
 class _FederatedNumPyClient(NumPyClient):
     """Cliente Flower (NumPy) ligado a la partición `partition_index` del proyecto."""
 
@@ -163,24 +176,73 @@ class _FederatedNumPyClient(NumPyClient):
         )
 
         net = model_wrapper.load_model(model_path)
+        in_arrays = [np.asarray(a, dtype=np.float32).copy() for a in parameters]
         net.load_state_dict(
-            {k: v.to(device) for k, v in _ndarrays_to_state_dict(parameters, self.param_keys).items()}
+            {k: v.to(device) for k, v in _ndarrays_to_state_dict(in_arrays, self.param_keys).items()}
         )
-        nm._train_loop(
-            net,
-            train_loader,
-            val_loader,
-            epochs=int(self.params.get("epochs", 3)),
-            learning_rate=float(self.params.get("learning_rate", 0.01)),
-            optimizer_name=str(self.params.get("optimizer", "adam")),
-            criterion=crit,
-            task=self.task,
-            metrics=self.metrics,
-            device=device,
-        )
+        metrics_out: dict[str, Scalar] = {}
+        use_scaffold = float(config.get("scaffold_enabled", 0.0)) > 0.0
+        local_epochs = int(self.params.get("epochs", 3))
+        lr = float(self.params.get("learning_rate", 0.01))
+        if use_scaffold:
+            local_epochs = max(1, int(float(config.get("scaffold_local_epochs", float(local_epochs)))))
+            lr = float(config.get("scaffold_learning_rate", lr))
+            c_global = _json_to_ndarrays(config.get("scaffold_c_global"))
+            c_client = _json_to_ndarrays(config.get("scaffold_c_client"))
+            correction_by_param: dict[str, torch.Tensor] = {}
+            if len(c_global) == len(in_arrays) and len(c_client) == len(in_arrays):
+                for j, key in enumerate(self.param_keys):
+                    corr = np.asarray(c_global[j], dtype=np.float32) - np.asarray(
+                        c_client[j], dtype=np.float32
+                    )
+                    correction_by_param[key] = torch.from_numpy(corr).to(device)
+            steps_done = nm._train_loop_scaffold(
+                net,
+                train_loader,
+                epochs=local_epochs,
+                learning_rate=lr,
+                optimizer_name=str(self.params.get("optimizer", "adam")),
+                criterion=crit,
+                task=self.task,
+                metrics=self.metrics,
+                device=device,
+                correction_by_param=correction_by_param,
+            )
+        else:
+            nm._train_loop(
+                net,
+                train_loader,
+                val_loader,
+                epochs=local_epochs,
+                learning_rate=lr,
+                optimizer_name=str(self.params.get("optimizer", "adam")),
+                criterion=crit,
+                task=self.task,
+                metrics=self.metrics,
+                device=device,
+            )
+            steps_done = max(1, local_epochs * max(1, len(train_loader)))
         n_train = len(train_loader.dataset)
         out_sd = {k: v.detach().cpu() for k, v in net.state_dict().items()}
-        return _state_dict_to_ndarrays(out_sd), n_train, {}
+        out_arrays = _state_dict_to_ndarrays(out_sd)
+
+        if use_scaffold:
+            c_global = _json_to_ndarrays(config.get("scaffold_c_global"))
+            c_client = _json_to_ndarrays(config.get("scaffold_c_client"))
+            eff = max(1e-12, float(steps_done) * max(lr, 1e-12))
+            if len(c_global) == len(out_arrays) and len(c_client) == len(out_arrays):
+                c_new: list[np.ndarray] = []
+                for j in range(len(out_arrays)):
+                    w_t = in_arrays[j]
+                    w_i = np.asarray(out_arrays[j], dtype=np.float32)
+                    ci_new = (
+                        np.asarray(c_client[j], dtype=np.float32)
+                        - np.asarray(c_global[j], dtype=np.float32)
+                        + (np.asarray(w_t, dtype=np.float32) - w_i) / eff
+                    )
+                    c_new.append(np.asarray(ci_new, dtype=np.float32))
+                metrics_out["scaffold_ci_new"] = _ndarrays_to_json(c_new)
+        return out_arrays, n_train, metrics_out
 
     def evaluate(
         self, parameters: list[np.ndarray], config: dict[str, Scalar]
@@ -394,6 +456,10 @@ def run_federated_training(
         on_progress=on_progress,
         num_rounds=num_federated_rounds,
         t_run_start=t_start,
+        param_keys=param_keys,
+        local_epochs=int(params.get("epochs", 3)),
+        learning_rate=float(params.get("learning_rate", 0.01)),
+        total_clients=n_clients,
         fraction_fit=fraction_fit,
         fraction_evaluate=fraction_evaluate,
         min_fit_clients=int(n_clients * fraction_fit),

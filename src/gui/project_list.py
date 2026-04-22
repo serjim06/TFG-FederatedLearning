@@ -469,7 +469,7 @@ class ProjectListFrame(BaseListFrame):
 
             ToolTip(self.add_button, text="Crear un proyecto nuevo", delay=0.5)
             ToolTip(self.delete_button, text="Eliminar proyecto seleccionado", delay=0.5)
-            ToolTip(self.train_button, text="Iniciar entrenamiento federado (servidor FedAvg)", delay=0.5)
+            ToolTip(self.train_button, text="Iniciar entrenamiento federado (servidor Flower)", delay=0.5)
             ToolTip(self.config_button, text="Configurar el proyecto seleccionado", delay=0.5)
             ToolTip(self.metrics_button, text="Ver las métricas del proyecto seleccionado", delay=0.5)
             ToolTip(self.report_button, text="Descargar el reporte del proyecto seleccionado", delay=0.5)
