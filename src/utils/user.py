@@ -1,9 +1,17 @@
 class User:
-    def __init__(self, id, username, password, role):
+    def __init__(
+        self,
+        id,
+        username,
+        role,
+        password_hash=None,
+        recovery_phrase_hash=None,
+    ):
         self.id = id
         self.username = username
-        self.password = password
         self.role = role
+        self.password_hash = password_hash
+        self.recovery_phrase_hash = recovery_phrase_hash
 
     def __getitem__(self, item):
         if hasattr(self, item):
@@ -16,11 +24,13 @@ class User:
         else:
             raise KeyError(key)
 
-    def modify(self, username=None, password=None):
+    def modify(self, username=None, password_hash=None, recovery_phrase_hash=None):
         if username:
             self.username = username
-        if password:
-            self.password = password
+        if password_hash:
+            self.password_hash = password_hash
+        if recovery_phrase_hash:
+            self.recovery_phrase_hash = recovery_phrase_hash
 
     def to_dict(self):
         """
@@ -37,6 +47,7 @@ class User:
         return {
             "id": self.id,
             "username": self.username,
-            "password": self.password,
             "role": self.role,
+            "password_hash": self.password_hash,
+            "recovery_phrase_hash": self.recovery_phrase_hash,
         }

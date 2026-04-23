@@ -1,4 +1,5 @@
 import tkinter as tk
+import time
 from sqlite3 import DatabaseError
 from tkinter import ttk
 from src.db import dbcon
@@ -7,12 +8,16 @@ import src.utils.utils as utils
 from src.gui import dialogs
 import src.utils.icons.image_finder as image_finder
 from PIL import ImageTk, Image
+from src.security.auth_policy import MAX_LOGIN_ATTEMPTS, LOCK_SECONDS, get_lock_message
+from src.security.passwords import verify_password
 
 class LoginPanel(tk.Frame):
     def __init__(self, parent, switch_frame):
         super().__init__(parent)
         self.configure(bg="#eef4fb")
         self.switch_frame = switch_frame
+        self.failed_attempts = 0
+        self.locked_until = 0.0
 
         style = utils.get_style()
 
@@ -76,17 +81,40 @@ class LoginPanel(tk.Frame):
         if not user or not passwd:
             dialogs.InfoDialog(self, "Error", "Rellena los campos", "error")
             return
+        if time.time() < self.locked_until:
+            dialogs.InfoDialog(self, "Error", get_lock_message(self.locked_until), "error")
+            return
 
         try:
-            obj_user = dbcon.command("select","users", {"username": user, "password": passwd})
-
+            obj_user = dbcon.command("select","users", {"username": user})
             if not obj_user:
+                self._handle_failed_attempt()
+                dialogs.InfoDialog(self, "Error", "Usuario o credenciales de acceso incorrectos", "error")
+                return
+            row = obj_user[0]
+            stored_hash = row.get("password_hash")
+            is_valid = verify_password(passwd, stored_hash)
+            if not is_valid:
+                self._handle_failed_attempt()
                 dialogs.InfoDialog(self, "Error", "Usuario o contraseña incorrectos", "error")
                 return
-
-            new_user = User(**obj_user[0])
+            self.failed_attempts = 0
+            self.locked_until = 0.0
+            new_user = User(
+                id=row["id"],
+                username=row["username"],
+                role=row["role"],
+                password_hash=row.get("password_hash"),
+                recovery_phrase_hash=row.get("recovery_phrase_hash"),
+            )
             self.switch_frame("dashboard", new_user)
 
         except (ValueError, DatabaseError) as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return
+
+    def _handle_failed_attempt(self):
+        self.failed_attempts += 1
+        if self.failed_attempts >= MAX_LOGIN_ATTEMPTS:
+            self.locked_until = time.time() + LOCK_SECONDS
+            self.failed_attempts = 0

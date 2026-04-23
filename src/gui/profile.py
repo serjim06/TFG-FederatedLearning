@@ -32,23 +32,10 @@ class ProfileFrame(tk.Frame):
 
         ttk.Label(
             self.info_frame,
-            text="Contraseña:",
+            text="Contraseña: protegida",
             font=label_font,
             background="#eef4fb"
-        ).pack(pady=(15, 5), anchor="w", padx=10)
-
-        pw_frame = tk.Frame(self.info_frame, bg="#eef4fb")
-        pw_frame.pack(padx=10, pady=(0, 10), fill="x")
-
-        self.password_entry = ttk.Entry(pw_frame, show="*", style="Custom.TEntry", font=label_font, state="readonly")
-        self.password_entry.pack(side="left", fill="x", expand=True)
-        self.password_entry.config(state="normal")
-        self.password_entry.insert(0, self.usuario['password'])
-        self.password_entry.config(state="readonly")
-
-        self.show_pw = False
-        self.eye_button = ttk.Button(pw_frame, text="👁", width=3, command=self._toggle_password)
-        self.eye_button.pack(side="left", padx=5)
+        ).pack(pady=(15, 10), anchor="w", padx=10)
 
         ttk.Label(self.info_frame, text=f"Rol: {self.usuario['role']}",
                   font=label_font, background="#eef4fb").pack(pady=10, anchor="w", padx=10)
@@ -63,14 +50,6 @@ class ProfileFrame(tk.Frame):
         self.modify_button.pack(pady=15, ipadx=15, ipady=5)
 
         ttk.Button(self, text="Volver", style="Sec.TButton", command=lambda: self.switch_frame("dashboard",self.usuario)).pack(side="bottom", pady=(5, 10))
-
-    def _toggle_password(self):
-        if self.show_pw:
-            self.password_entry.config(show="*")
-            self.show_pw = False
-        else:
-            self.password_entry.config(show="")
-            self.show_pw = True
 
     def _cerrar_sesion(self):
         confirmar = dialogs.OptionDialog.ask(self, "Cerrar sesión", "¿Seguro que quieres cerrar sesión?")

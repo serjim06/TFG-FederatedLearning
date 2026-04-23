@@ -48,6 +48,9 @@ class BaseDialog(tk.Toplevel):
 class InfoDialog(BaseDialog):
     """Simple informational dialog (info, warning, error).
 
+    Blocks until the user closes the dialog (same pattern as ``OptionDialog.ask``),
+    so callers can safely show a message and then continue (e.g. ``switch_frame``).
+
     Parameters
     ----------
     parent: tk widget - the parent window.
@@ -73,6 +76,10 @@ class InfoDialog(BaseDialog):
         tk.Label(frame, text=message, font=(utils.FONT, 12, "bold"), bg=utils.BG_COLOR, wraplength=300, justify="left").grid(row=0, column=1)
         self._add_ok_button()
         self.center_dialog()
+        self.update_idletasks()
+        master = self.master
+        if master is not None:
+            master.wait_window(self)
 
 
 class OptionDialog(BaseDialog):

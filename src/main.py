@@ -36,8 +36,10 @@ class App(tk.Tk):
             self.geometry("400x425")
             frame = login.LoginPanel(self.container, self.show_frame)
         elif name == "register":
+            self.geometry("400x600")
             frame = register.RegisterFrame(self.container, self.show_frame)
         elif name == "recover":
+            self.geometry("400x360")
             frame = recover.RecoverFrame(self.container, self.show_frame)
         elif name == "dashboard":
             self.geometry("1000x600")
@@ -48,6 +50,7 @@ class App(tk.Tk):
             self.geometry("600x600")
             frame = profile.ProfileFrame(self.container, self.show_frame, usuario)
         elif name == "modify":
+            self.geometry("600x630")
             frame = modify.ModifyPanel(self.container, self.show_frame, self.usuario_actual)
         elif name == "modified_profile":
             self.usuario_actual = usuario

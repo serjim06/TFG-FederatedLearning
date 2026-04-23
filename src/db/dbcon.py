@@ -4,6 +4,7 @@ import re
 from sqlite3 import Connection, DatabaseError
 import os
 from typing import Dict, Any, Optional
+from src.security.passwords import hash_password
 
 database: Optional[Connection] = None
 

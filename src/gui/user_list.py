@@ -49,7 +49,13 @@ class UserListFrame(tk.Frame):
         self.clear_users()
         self.users = dbcon.command("select", "users", {"id": "*"})
         for user in self.users:
-            real_user = User(**user)
+            real_user = User(
+                id=user["id"],
+                username=user["username"],
+                role=user["role"],
+                password_hash=user.get("password_hash"),
+                recovery_phrase_hash=user.get("recovery_phrase_hash"),
+            )
             if real_user.id == self.user["id"]:
                 continue
             card = UserCard(self.frame, real_user.to_dict(), self)
