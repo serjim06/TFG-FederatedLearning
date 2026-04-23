@@ -649,8 +649,8 @@ def _strategy_display(aggregation: str) -> str:
     m = {
         "fed_avg": "FedAvg",
         "fed_med": "FedMedian",
-        "fed_nova": "FedNova",
         "fed_scaffold": "Scaffold",
+        "fed_ssfed": "SSFed",
         "fed_sum": "FedSum",
         "fed_weighted": "FedWeighted",
         "fed_prox": "FedProx",

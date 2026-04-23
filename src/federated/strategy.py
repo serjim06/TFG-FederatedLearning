@@ -5,10 +5,10 @@ import json
 from typing import Any, Callable, Optional
 
 import numpy as np
-from flwr.common import FitIns, Scalar, parameters_to_ndarrays
+from flwr.common import FitIns, Scalar, ndarrays_to_parameters, parameters_to_ndarrays
 from flwr.common.typing import FitRes
 from flwr.server.client_proxy import ClientProxy
-from flwr.server.strategy import FedAvg, FedMedian, FedNova, Strategy
+from flwr.server.strategy import FedAvg, FedMedian, Strategy
 
 ProgressCallback = Optional[
     Callable[[int, int, str, Optional[float]], None]
@@ -147,28 +147,6 @@ class TrackingFedMedian(_FedStrategyRoundTracking, FedMedian):
         self._t_round_start: float | None = None
 
 
-class TrackingFedNova(_FedStrategyRoundTracking, FedNova):
-    """Flower FedNova with per-round global weight snapshots and round timing."""
-
-    def __init__(
-        self,
-        *,
-        snapshots: list[list[np.ndarray]],
-        round_times: list[float],
-        on_progress: ProgressCallback,
-        num_rounds: int,
-        t_run_start: float,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self._snapshots = snapshots
-        self._round_times = round_times
-        self._on_progress = on_progress
-        self._num_rounds = num_rounds
-        self._t_run_start = t_run_start
-        self._t_round_start: float | None = None
-
-
 class TrackingScaffold(_FedStrategyRoundTracking, FedAvg):
     """Flower SCAFFOLD-like strategy with per-round snapshots and timing."""
 
@@ -283,6 +261,101 @@ class TrackingScaffold(_FedStrategyRoundTracking, FedAvg):
         return super().aggregate_fit(server_round, results, failures)
 
 
+class TrackingSSFed(_FedStrategyRoundTracking, FedAvg):
+    """Flower SSFed strategy with significance-based weighted aggregation.
+    
+    This implementation is based on the pseudo-code and technical description of the SSFed algorithm.
+    The algorithm is described in the following article:
+    - Yousef Alsenani. “SSFed: Statistical Significance Aggregation Algorithm in Federated Learning”. International Journal of Advanced Computer Science and Applications (IJACSA) 16.3 (2025).
+    - The referenced article is available at: http://dx.doi.org/10.14569/IJACSA.2025.01603112
+    """
+
+    _z_threshold: float
+    _eps: float
+
+    def __init__(
+        self,
+        *,
+        snapshots: list[list[np.ndarray]],
+        round_times: list[float],
+        on_progress: ProgressCallback,
+        num_rounds: int,
+        t_run_start: float,
+        z_threshold: float = 1.96,
+        eps: float = 1e-12,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._snapshots = snapshots
+        self._round_times = round_times
+        self._on_progress = on_progress
+        self._num_rounds = num_rounds
+        self._t_run_start = t_run_start
+        self._t_round_start = None
+        self._z_threshold = float(z_threshold)
+        self._eps = float(eps)
+
+    def aggregate_fit(
+        self,
+        server_round: int,
+        results: list[tuple[ClientProxy, FitRes]],
+        failures: list[tuple[ClientProxy, FitRes] | BaseException],
+    ) -> tuple[Any, dict[str, Scalar]]:
+        if not results:
+            return super().aggregate_fit(server_round, results, failures)
+
+        client_weights: list[list[np.ndarray]] = []
+        for _, fit_res in results:
+            client_weights.append(
+                [np.asarray(w, dtype=np.float32) for w in parameters_to_ndarrays(fit_res.parameters)]
+            )
+
+        if not client_weights:
+            return super().aggregate_fit(server_round, results, failures)
+
+        n_clients = len(client_weights)
+        n_tensors = len(client_weights[0])
+        if n_clients < 2 or n_tensors == 0:
+            return super().aggregate_fit(server_round, results, failures)
+
+        client_max_z = np.zeros(n_clients, dtype=np.float64)
+        client_avg_z = np.zeros(n_clients, dtype=np.float64)
+
+        for j in range(n_tensors):
+            stacked = np.stack([client_weights[i][j] for i in range(n_clients)], axis=0)
+            mean_j = np.mean(stacked, axis=0)
+            std_j = np.std(stacked, axis=0)
+            z_j = np.abs(stacked - mean_j) / np.maximum(std_j, self._eps)
+            flat = z_j.reshape(n_clients, -1)
+            client_max_z = np.maximum(client_max_z, np.max(flat, axis=1))
+            client_avg_z += np.mean(flat, axis=1)
+
+        client_avg_z /= float(n_tensors)
+        selected_idx = np.where(client_max_z > self._z_threshold)[0]
+        if selected_idx.size == 0:
+            selected_idx = np.arange(n_clients)
+
+        selected_avg_z = client_avg_z[selected_idx]
+        alpha = 1.0 / np.maximum(selected_avg_z, self._eps)
+        alpha = alpha / np.sum(alpha)
+
+        aggregated: list[np.ndarray] = []
+        for j in range(n_tensors):
+            acc = np.zeros_like(client_weights[0][j], dtype=np.float32)
+            for local_pos, i in enumerate(selected_idx):
+                acc += np.asarray(alpha[local_pos], dtype=np.float32) * client_weights[i][j]
+            aggregated.append(acc.astype(np.float32, copy=False))
+
+        out_parameters = ndarrays_to_parameters(aggregated)
+        out_metrics: dict[str, Scalar] = {
+            "ssfed_selected_clients": float(selected_idx.size),
+            "ssfed_total_clients": float(n_clients),
+            "ssfed_selection_ratio": float(selected_idx.size) / float(max(n_clients, 1)),
+            "ssfed_threshold": float(self._z_threshold),
+        }
+        return out_parameters, out_metrics
+
+
 def create_tracking_strategy(
     aggregation_strategy: str | None,
     *,
@@ -295,11 +368,12 @@ def create_tracking_strategy(
     local_epochs: int = 1,
     learning_rate: float = 0.01,
     total_clients: int = 1,
+    ssfed_z_threshold: float = 1.96,
     **flower_kwargs: Any,
 ) -> Strategy:
     """Build a Flower server strategy that aggregates client updates and records state each round.
 
-    The returned instance subclasses Flower's ``FedAvg``, ``FedMedian`` or ``FedNova``, or
+    The returned instance subclasses Flower's ``FedAvg`` or ``FedMedian``, or
     uses a SCAFFOLD-compatible variant, and mixes in round timing plus a copy of the global
     parameters after every successful ``aggregate_fit`` into ``snapshots`` (one list of
     weight arrays per federated round).
@@ -307,8 +381,8 @@ def create_tracking_strategy(
     Selection rule (case-insensitive, surrounding whitespace ignored):
 
     * ``fed_med`` → ``TrackingFedMedian`` (coordinate-wise median).
-    * ``fed_nova`` → ``TrackingFedNova`` (normalized averaging).
     * ``fed_scaffold`` → ``TrackingScaffold`` (control variates).
+    * ``fed_ssfed`` → ``TrackingSSFed`` (significance-based weighting).
     * Any other value, including ``None`` or empty string → ``TrackingFedAvg``
       (sample-weighted average).
 
@@ -346,8 +420,8 @@ def create_tracking_strategy(
         "",
         "fed_avg",
         "fed_med",
-        "fed_nova",
         "fed_scaffold",
+        "fed_ssfed",
         "fed_sum",
         "fed_weighted",
         "fed_prox",
@@ -355,8 +429,6 @@ def create_tracking_strategy(
         raise ValueError(f"Estrategia de agregación no soportada: {aggregation_strategy!r}")
     if key == "fed_med":
         return TrackingFedMedian(**tracking_kwargs, **flower_kwargs)
-    if key == "fed_nova":
-        return TrackingFedNova(**tracking_kwargs, **flower_kwargs)
     if key == "fed_scaffold":
         return TrackingScaffold(
             **tracking_kwargs,
@@ -364,6 +436,12 @@ def create_tracking_strategy(
             local_epochs=local_epochs,
             learning_rate=learning_rate,
             total_clients=total_clients,
+            **flower_kwargs,
+        )
+    if key == "fed_ssfed":
+        return TrackingSSFed(
+            **tracking_kwargs,
+            z_threshold=ssfed_z_threshold,
             **flower_kwargs,
         )
     return TrackingFedAvg(**tracking_kwargs, **flower_kwargs)

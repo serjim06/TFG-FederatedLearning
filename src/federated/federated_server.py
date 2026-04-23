@@ -460,6 +460,7 @@ def run_federated_training(
         local_epochs=int(params.get("epochs", 3)),
         learning_rate=float(params.get("learning_rate", 0.01)),
         total_clients=n_clients,
+        ssfed_z_threshold=float(params.get("ssfed_z_threshold", 1.96)),
         fraction_fit=fraction_fit,
         fraction_evaluate=fraction_evaluate,
         min_fit_clients=int(n_clients * fraction_fit),

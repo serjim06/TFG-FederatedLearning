@@ -14,6 +14,7 @@ default_parameters = {
     "batch_size": 32,
     "fraction_fit": 0.8,
     "fraction_evaluate": 0.5,
+    "ssfed_z_threshold": 1.96,
     "task_type": "classification",
 }
 
@@ -35,11 +36,12 @@ class Project:
                 - "batch_size" (int): batch size. Default is 32
                 - "fraction_fit" (float): fraction of nodes used for training. Default is 0.8
                 - "fraction_evaluate" (float): fraction of nodes used for evaluation. Default is 0.5
+                - "ssfed_z_threshold" (float): z-score threshold used by SSFed. Default is 1.96
             aggregation_strategy (str): project aggregation strategy. Possible values:
                 - "fed_avg": Federated Averaging
                 - "fed_med": Federated Median (Flower FedMedian)
-                - "fed_nova": Federated Nova (Flower FedNova)
                 - "fed_scaffold": Federated SCAFFOLD
+                - "fed_ssfed": Statistical Significance Federated aggregation
                 - "fed_prox": Federated Proximal
             initial_nodes (list): project initial nodes
             metrics (string): función de pérdida del proyecto. Posibles valores:

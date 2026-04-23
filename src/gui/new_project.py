@@ -72,6 +72,22 @@ class ScrollableNodesFrame(ttk.Frame):
 FORM_LABEL = "Form.TLabel"
 
 class NewProject(ttk.Frame):
+    _STRATEGY_EXTRA_FIELDS = {
+        "fed_ssfed": [
+            {
+                "key": "ssfed_z_threshold",
+                "label": "SSFed z-threshold:",
+                "type": "float",
+                "default": 1.96,
+                "from_": 0.1,
+                "to": 10.0,
+                "increment": 0.05,
+                "width": 7,
+                "tooltip": "Umbral z para seleccionar actualizaciones significativas en SSFed.",
+            }
+        ]
+    }
+
     def __init__(self, parent, project, user_id=None, *, grid_row=0):
         super().__init__(parent, padding=10)
         self.configure(style="TFrame")
@@ -88,6 +104,7 @@ class NewProject(ttk.Frame):
         self.ruta = None
         self.input_features = []
         self.output_features = []
+        self._strategy_param_widgets = {}
 
         self._build_ui()
 
@@ -207,18 +224,33 @@ class NewProject(ttk.Frame):
 
         self.aggregation_cb = ttk.Combobox(
             self.params_frame,
-            values=["fed_avg", "fed_med", "fed_nova", "fed_scaffold", "fed_sum", "fed_weighted"],
+            values=[
+                "fed_avg",
+                "fed_med",
+                "fed_scaffold",
+                "fed_ssfed",
+                "fed_sum",
+                "fed_weighted",
+            ],
             state="readonly",
         )
         self.aggregation_cb.grid(row=3, column=0, sticky="ew", pady=(0, 5))
-        
+        self.aggregation_cb.bind("<<ComboboxSelected>>", self._on_aggregation_strategy_selected)
         self.aggregation_cb.set("fed_avg")
         
         ToolTip(self.agg_lb, text="Selecciona la estrategia de agregación que se utilizará para combinar los modelos entrenados por los nodos.")
 
+        self.strategy_params_label = ttk.Label(
+            self.params_frame, text="Strategy parameters:", style=FORM_LABEL
+        )
+        self.strategy_params_label.grid(row=4, column=0, sticky="w")
+        self.strategy_params_frame = ttk.Frame(self.params_frame)
+        self.strategy_params_frame.columnconfigure(0, weight=1)
+        self.strategy_params_frame.grid(row=5, column=0, sticky="ew", pady=(0, 5))
+
         self.epochs_label = ttk.Label(self.params_frame, text="Epochs:", style=FORM_LABEL, cursor="question_arrow")
         self.epochs_label.grid(
-            row=4, column=0, sticky="w"
+            row=6, column=0, sticky="w"
         )
         
         epochs_var = tk.IntVar(value=3)
@@ -229,13 +261,13 @@ class NewProject(ttk.Frame):
             textvariable=epochs_var,
             width=5,
         )
-        self.epochs.grid(row=5, column=0, sticky="ew", pady=(0, 5))
+        self.epochs.grid(row=7, column=0, sticky="ew", pady=(0, 5))
 
         ToolTip(self.epochs_label, text="Número de veces que el modelo verá todo el conjunto de datos durante el entrenamiento.")
 
         self.val_split_label = ttk.Label(self.params_frame, text="Validation split:", style=FORM_LABEL, cursor="question_arrow")
         self.val_split_label.grid(
-            row=6, column=0, sticky="w"
+            row=8, column=0, sticky="w"
         )
 
         val_split_var = tk.DoubleVar(value=0.2)
@@ -248,12 +280,12 @@ class NewProject(ttk.Frame):
             width=5,
         )
     
-        self.validation_split.grid(row=7, column=0, sticky="ew", pady=(0, 5))
+        self.validation_split.grid(row=9, column=0, sticky="ew", pady=(0, 5))
         
         ToolTip(self.val_split_label, text="Proporción del conjunto de datos que se utilizará para la validación durante el entrenamiento.")
 
         self.batch_frame = ttk.Frame(self.params_frame)
-        self.batch_frame.grid(row=8, column=0, sticky="ew")
+        self.batch_frame.grid(row=10, column=0, sticky="ew")
         
         self.warning_image = ImageTk.PhotoImage(Image.open(image_finder.find_image("risk")).resize((18,18))) 
         
@@ -279,14 +311,14 @@ class NewProject(ttk.Frame):
             width=5,
         )
 
-        self.batch_size.grid(row=9, column=0, sticky="ew", pady=(0, 5))
+        self.batch_size.grid(row=11, column=0, sticky="ew", pady=(0, 5))
         
         ToolTip(self.batch_size_label, text="Número de muestras que se procesan antes de actualizar el modelo durante el entrenamiento.\nUn tamaño de batch más grande puede acelerar el entrenamiento, pero también requiere más memoria.")
         ToolTip(self.warning_label, text="Advertencia: Un tamaño de batch muy grande puede causar problemas de memoria en nodos con recursos limitados.")
 
         self.fraction_fit_label = ttk.Label(self.params_frame, text="Fraction fit:", style=FORM_LABEL, cursor="question_arrow")
         self.fraction_fit_label.grid(
-            row=10, column=0, sticky="w")
+            row=12, column=0, sticky="w")
         
         fit_var = tk.DoubleVar(value=0.8)
         self.fraction_fit = tk.Spinbox(
@@ -297,13 +329,13 @@ class NewProject(ttk.Frame):
             textvariable=fit_var,
             width=5,
         )
-        self.fraction_fit.grid(row=11, column=0, sticky="ew", pady=(0, 5))
+        self.fraction_fit.grid(row=13, column=0, sticky="ew", pady=(0, 5))
         
         ToolTip(self.fraction_fit_label, text="Proporción de nodos participantes que se utilizarán para el entrenamiento en cada ronda.")
 
         self.fraction_evaluate_label = ttk.Label(self.params_frame, text="Fraction evaluate:", style=FORM_LABEL, cursor="question_arrow")
         self.fraction_evaluate_label.grid(
-            row=12, column=0, sticky="w")
+            row=14, column=0, sticky="w")
         
         evaluate_var = tk.DoubleVar(value=0.5)
         self.fraction_evaluate = tk.Spinbox(
@@ -314,13 +346,13 @@ class NewProject(ttk.Frame):
             textvariable=evaluate_var,
             width=5,
         )
-        self.fraction_evaluate.grid(row=13, column=0, sticky="ew", pady=(0, 5))
+        self.fraction_evaluate.grid(row=15, column=0, sticky="ew", pady=(0, 5))
         
         ToolTip(self.fraction_evaluate_label, text="Proporción de nodos participantes que se utilizarán para la evaluación en cada ronda.")
 
         self.learning_rate_label = ttk.Label(self.params_frame, text="Learning rate:", style=FORM_LABEL, cursor="question_arrow")
         self.learning_rate_label.grid(
-            row=14, column=0, sticky="w")
+            row=16, column=0, sticky="w")
         
         lr_var = tk.DoubleVar(value=0.01)
         self.learning_rate = tk.Spinbox(
@@ -331,7 +363,7 @@ class NewProject(ttk.Frame):
             textvariable=lr_var,
             width=7,
         )
-        self.learning_rate.grid(row=15, column=0, sticky="ew", pady=(0, 5))
+        self.learning_rate.grid(row=17, column=0, sticky="ew", pady=(0, 5))
         
         ToolTip(self.learning_rate_label, text="Tasa de aprendizaje que determina el tamaño de los pasos que da el optimizador al actualizar los pesos del modelo durante el entrenamiento.")
 
@@ -364,6 +396,8 @@ class NewProject(ttk.Frame):
                 background="#eef4fb"
             ).grid(row=len(self.node_vars)+1, column=0, sticky="w", padx=5)
             self.node_vars[str(uuid.UUID(bytes=node_data["id"]))] = var
+
+        self._render_strategy_param_fields()
             
         
     def _select_model(self):
@@ -456,6 +490,50 @@ class NewProject(ttk.Frame):
     def _on_task_type_selected(self, _event=None) -> None:
         self._sync_loss_options_for_task()
 
+    def _clear_strategy_param_fields(self) -> None:
+        for widget in self.strategy_params_frame.winfo_children():
+            widget.destroy()
+        self._strategy_param_widgets = {}
+
+    def _render_strategy_param_fields(self) -> None:
+        self._clear_strategy_param_fields()
+        strategy_key = (self.aggregation_cb.get() or "").strip().lower()
+        fields = self._STRATEGY_EXTRA_FIELDS.get(strategy_key, [])
+
+        if not fields:
+            self.strategy_params_label.grid_remove()
+            self.strategy_params_frame.grid_remove()
+            return
+
+        self.strategy_params_label.grid()
+        self.strategy_params_frame.grid()
+
+        for idx, spec in enumerate(fields):
+            label = ttk.Label(
+                self.strategy_params_frame,
+                text=spec["label"],
+                style=FORM_LABEL,
+                cursor="question_arrow",
+            )
+            label.grid(row=idx * 2, column=0, sticky="w")
+
+            default_val = spec["default"]
+            var = tk.DoubleVar(value=float(default_val))
+            spinbox = tk.Spinbox(
+                self.strategy_params_frame,
+                from_=float(spec["from_"]),
+                to=float(spec["to"]),
+                increment=float(spec["increment"]),
+                textvariable=var,
+                width=int(spec["width"]),
+            )
+            spinbox.grid(row=idx * 2 + 1, column=0, sticky="ew", pady=(0, 5))
+            ToolTip(label, text=spec["tooltip"])
+            self._strategy_param_widgets[spec["key"]] = (spec["type"], spinbox)
+
+    def _on_aggregation_strategy_selected(self, _event=None) -> None:
+        self._render_strategy_param_fields()
+
     def _load_project_data(self):
         mp = (self.project.get("model_path") or "").strip()
         self.ruta = Path(mp).as_posix() if mp else ""
@@ -482,6 +560,12 @@ class NewProject(ttk.Frame):
         self.fraction_evaluate.insert(0, str(parameters.get("fraction_evaluate", 0.5)))
         
         self.aggregation_cb.set(self.project.get("aggregation_strategy", "fed_avg"))
+        self._render_strategy_param_fields()
+        for key, (param_type, widget) in self._strategy_param_widgets.items():
+            default_value = 0.0 if param_type == "float" else 0
+            value = parameters.get(key, default_value)
+            widget.delete(0, "end")
+            widget.insert(0, str(value))
 
         metrics_col = self.project.get("metrics", "categorical_crossentropy")
         tt = parameters.get("task_type")
@@ -530,19 +614,26 @@ class NewProject(ttk.Frame):
         if not self.ruta:
             raise ValueError("Debes seleccionar un modelo (.py) antes de continuar.")
 
+        parameters = {
+            "optimizer": self.optimizer_cb.get(),
+            "learning_rate": float(self.learning_rate.get()),
+            "epochs": int(self.epochs.get()),
+            "validation_split": float(self.validation_split.get()),
+            "batch_size": int(self.batch_size.get()),
+            "fraction_fit": float(self.fraction_fit.get()),
+            "fraction_evaluate": float(self.fraction_evaluate.get()),
+        }
+        for key, (param_type, widget) in self._strategy_param_widgets.items():
+            if param_type == "int":
+                parameters[key] = int(widget.get())
+            else:
+                parameters[key] = float(widget.get())
+
         return {
             "name": self.name_entry.get("1.0", "end-1c").strip(),
             "description": self.description_text.get("1.0", "end-1c").strip(),
             "task_type": self.task_type_cb.get(),
-            "parameters": {
-                "optimizer": self.optimizer_cb.get(),
-                "learning_rate": float(self.learning_rate.get()),
-                "epochs": int(self.epochs.get()),
-                "validation_split": float(self.validation_split.get()),
-                "batch_size": int(self.batch_size.get()),
-                "fraction_fit": float(self.fraction_fit.get()),
-                "fraction_evaluate": float(self.fraction_evaluate.get()),
-            },
+            "parameters": parameters,
             "aggregation_strategy": self.aggregation_cb.get(),
             "initial_nodes": [node_id for node_id, var in self.node_vars.items() if var.get()],
             "metrics": self.metrics_cb.get(),
