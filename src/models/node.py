@@ -658,13 +658,6 @@ def _strategy_display(aggregation: str) -> str:
     return m.get((aggregation or "").lower(), aggregation or "FedAvg")
 
 
-def _project_total_client_ids(project_row: dict) -> list[str]:
-    raw = project_row.get("nodes") or "[]"
-    if isinstance(raw, str):
-        raw = json.loads(raw)
-    return list(raw)
-
-
 def _gather_predictions(
     net: nn.Module,
     loader: DataLoader,
@@ -734,6 +727,7 @@ def build_training_results_entry(
     round_num: int,
     elapsed_seconds: float,
     global_loss: float,
+    total_clients: Optional[list[str]] = None,
     train_history: Optional[dict[str, list[float]]] = None,
     eval_result: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
@@ -744,7 +738,6 @@ def build_training_results_entry(
     It can be serialized with ``json.dumps`` and appended to the array stored in ``projects.training_results``.
     """
     node_str = _node_uuid_str(node_id)
-    total_clients = _project_total_client_ids(project_row)
     if not total_clients:
         total_clients = [node_str]
 

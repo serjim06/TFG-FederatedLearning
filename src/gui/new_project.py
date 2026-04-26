@@ -385,12 +385,26 @@ class NewProject(ttk.Frame):
         except (ValueError, DatabaseError) as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return
-            
-        
-        if self.project != None:
+
+        selected_node_ids = set()
+        if self.project is not None:
+            selected_nodes = self._node_repository.list_by_project_id(self.project["id"])
+            selected_node_ids = {
+                str(uuid.UUID(bytes=node_data["id"])) for node_data in selected_nodes
+            }
             self._load_project_data()
-            
+            nodes = selected_nodes + nodes
+
+        unique_nodes: list[dict[str, object]] = []
+        seen_ids: set[bytes] = set()
         for node_data in nodes:
+            node_id = node_data["id"]
+            if node_id in seen_ids:
+                continue
+            seen_ids.add(node_id)
+            unique_nodes.append(node_data)
+
+        for node_data in unique_nodes:
             var = tk.BooleanVar()
             tk.Checkbutton(
                 self.nodes_frame,
@@ -398,7 +412,9 @@ class NewProject(ttk.Frame):
                 variable=var,
                 background="#eef4fb"
             ).grid(row=len(self.node_vars)+1, column=0, sticky="w", padx=5)
-            self.node_vars[str(uuid.UUID(bytes=node_data["id"]))] = var
+            node_id = str(uuid.UUID(bytes=node_data["id"]))
+            self.node_vars[node_id] = var
+            self.node_vars[node_id].set(node_id in selected_node_ids)
 
         self._render_strategy_param_fields()
             
@@ -581,25 +597,8 @@ class NewProject(ttk.Frame):
         if self.metrics_cb.get() not in opts and opts:
             self.metrics_cb.set(opts[0])
 
-        initial_nodes = json.loads(self.project["nodes"])
-        
         self.model_select_btn.pack_forget()
         self.model_name.set(os.path.basename(self.project["model_path"]))
-        
-        for node_id in initial_nodes:
-            var = tk.BooleanVar()
-
-            tk.Checkbutton(
-                self.nodes_frame,
-                text=str(uuid.UUID(node_id)),
-                variable=var,
-                background="#eef4fb"
-            ).grid(row=len(self.node_vars)+1, column=0, sticky="w", padx=5)
-
-            self.node_vars[str(uuid.UUID(node_id))] = var
-
-                
-            self.node_vars[str(uuid.UUID(node_id))].set(True)
 
 
     def _toggle_params(self):
@@ -711,6 +710,7 @@ class SeeProjectDialog(tk.Toplevel):
             SQLiteNodeRepository(),
         )
         self._project_repository = SQLiteProjectRepository()
+        self._node_repository = SQLiteNodeRepository()
         
         self.geometry("700x720")
         self.resizable(False, False)
@@ -761,7 +761,8 @@ class SeeProjectDialog(tk.Toplevel):
         ttk.Button(inner, text="Cancelar", command=self.destroy, style="Accent.TButton").pack(side="left", padx=(10, 0))
     
     def _add_dataset(self):
-        nodes = json.loads(self.project["nodes"])
+        assigned_nodes = self._node_repository.list_by_project_id(self.project["id"])
+        nodes = [str(uuid.UUID(bytes=node["id"])) for node in assigned_nodes]
         if not nodes:
             dialogs.InfoDialog(self, "Información", "El proyecto no tiene nodos asignados.", "warning")
             return

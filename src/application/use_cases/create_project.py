@@ -27,7 +27,6 @@ class CreateProjectUseCase:
             "parameters": json.dumps(form_data["parameters"]),
             "aggregation_strategy": form_data["aggregation_strategy"],
             "metrics": form_data["metrics"],
-            "nodes": json.dumps(form_data["initial_nodes"]),
             "model_path": form_data["model_path"],
             "input_features": json.dumps(form_data["input_features"]),
             "output_features": json.dumps(form_data["output_features"]),
@@ -35,7 +34,7 @@ class CreateProjectUseCase:
             "type": form_data["task_type"],
         }
         project_row = self.project_repository.create(payload)
-        selected_nodes = json.loads(project_row["nodes"])
+        selected_nodes = form_data["initial_nodes"]
         for node_id in selected_nodes:
             self.node_repository.update(
                 {

@@ -1,7 +1,8 @@
-import json
+import uuid
 from typing import Any, Callable
 
 from src.application.dto.operation_result import OperationResult
+from src.application.repositories.node_repository import NodeRepository
 from src.application.repositories.project_repository import ProjectRepository
 from src.application.services.federated_training_service import FederatedTrainingService
 from src.models.node import merge_project_training_results
@@ -16,9 +17,11 @@ class RunFederatedTrainingUseCase:
     def __init__(
         self,
         project_repository: ProjectRepository,
+        node_repository: NodeRepository,
         training_service: FederatedTrainingService,
     ):
         self.project_repository = project_repository
+        self.node_repository = node_repository
         self.training_service = training_service
 
     def execute(
@@ -31,13 +34,19 @@ class RunFederatedTrainingUseCase:
         project_row = self.project_repository.get_by_id(project_id)
         if not project_row:
             return OperationResult(ok=False, error="No se encontró el proyecto.")
-        nodes = json.loads(project_row["nodes"]) if project_row.get("nodes") else []
+        nodes = self.node_repository.list_by_project_id(project_id)
         if not nodes:
             return OperationResult(
                 ok=False,
                 error="El proyecto no tiene nodos asignados. Añade nodos en la configuración del proyecto.",
             )
-        out = self.training_service.run(project_row, rounds, on_progress=on_progress)
+        node_ids = [str(uuid.UUID(bytes=node["id"])) for node in nodes]
+        out = self.training_service.run(
+            project_row,
+            rounds,
+            node_ids=node_ids,
+            on_progress=on_progress,
+        )
         merged = merge_project_training_results(
             project_row.get("training_results"),
             out["training_results_entry"],

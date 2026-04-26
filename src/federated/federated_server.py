@@ -407,6 +407,7 @@ def _collect_round_client_stats(
 def run_federated_training(
     project_row: dict[str, Any],
     num_federated_rounds: int,
+    node_ids: list[str],
     on_progress: ProgressCallback = None,
 ) -> dict[str, Any]:
     if num_federated_rounds < 1:
@@ -416,7 +417,7 @@ def run_federated_training(
     if isinstance(params, str):
         params = json.loads(params)
 
-    node_ids_str = nm._project_total_client_ids(project_row)
+    node_ids_str = list(node_ids)
     if not node_ids_str:
         raise ValueError("El proyecto no tiene nodos asignados.")
 
@@ -611,6 +612,7 @@ def run_federated_training(
         round_num=num_federated_rounds,
         elapsed_seconds=total_time,
         global_loss=float(results_per_round[-1]["global_loss"]) if results_per_round else 0.0,
+        total_clients=node_ids_str,
     )
     training_results_entry["train_id"] = fed_train_id
     training_results_entry["results_per_round"] = results_per_round

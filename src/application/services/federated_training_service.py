@@ -13,7 +13,13 @@ class FederatedTrainingService:
         self,
         project_row: dict[str, Any],
         num_rounds: int,
+        node_ids: list[str],
         on_progress: ProgressCallback | None = None,
     ) -> dict[str, Any]:
         """Run federated training for one project row."""
-        return run_federated_training(project_row, num_rounds, on_progress=on_progress)
+        return run_federated_training(
+            project_row,
+            num_rounds,
+            node_ids=node_ids,
+            on_progress=on_progress,
+        )

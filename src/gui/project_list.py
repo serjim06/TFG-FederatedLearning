@@ -57,10 +57,12 @@ class ProjectListFrame(BaseListFrame):
             self._fed_queue: queue.Queue = queue.Queue()
             self._federated_use_case = RunFederatedTrainingUseCase(
                 self._project_repository,
+                self._node_repository,
                 FederatedTrainingService(),
             )
             self._metrics_use_case = GetProjectMetricsUseCase(
                 self._project_repository,
+                self._node_repository,
                 MetricsService(),
             )
             self._report_use_case = GenerateProjectReportUseCase(
@@ -210,8 +212,9 @@ class ProjectListFrame(BaseListFrame):
             dialogs.InfoDialog(self, "Error", "No se encontró el proyecto.", "error")
             return
 
-        nodes = json.loads(row["nodes"]) if row.get("nodes") else []
-        if not nodes:
+        nodes = self._node_repository.list_by_project_id(project_id)
+        node_ids = [str(uuid.UUID(bytes=node["id"])) for node in nodes]
+        if not node_ids:
             dialogs.InfoDialog(
                 self,
                 "Sin nodos",
@@ -231,7 +234,7 @@ class ProjectListFrame(BaseListFrame):
         PredictDialog(
             self,
             feature_names=in_features,
-            node_ids=nodes,
+            node_ids=node_ids,
             default_line="",
             on_confirm=on_confirm,
         )
@@ -757,17 +760,13 @@ class ProjectListFrame(BaseListFrame):
             project_id (bytes): The id of the project whose nodes are to be invalidated.
         """
         
-        project_data = self._project_repository.get_by_id(project_id)
-        if project_data:
-            project_nodes = json.loads(project_data["nodes"])
-                        
-            for node_id in project_nodes:
-                self._eliminate_dataset(uuid.UUID(node_id).bytes)
-                            
-                try:
-                    self._node_repository.update({"id": uuid.UUID(node_id).bytes, "valid": 0})
-                except (ValueError, DatabaseError) as e:
-                    dialogs.InfoDialog(self, "Error", str(e), "error")
+        project_nodes = self._node_repository.list_by_project_id(project_id)
+        for node_row in project_nodes:
+            self._eliminate_dataset(node_row["id"])
+            try:
+                self._node_repository.update({"id": node_row["id"], "valid": 0, "project_id": ""})
+            except (ValueError, DatabaseError) as e:
+                dialogs.InfoDialog(self, "Error", str(e), "error")
                     
     
     def _initialize_tree(self):

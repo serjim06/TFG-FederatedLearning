@@ -44,12 +44,25 @@ class InMemoryProjectRepository:
 class InMemoryNodeRepository:
     def __init__(self):
         self.updates = []
+        self.items = {}
 
     def get_by_id(self, node_id):
-        return None
+        return self.items.get(node_id)
+
+    def list_by_project_id(self, project_id):
+        return [
+            dict(node)
+            for node in self.items.values()
+            if node.get("project_id") == project_id and int(node.get("valid", 0)) == 1
+        ]
 
     def update(self, payload):
-        self.updates.append(dict(payload))
+        patch = dict(payload)
+        self.updates.append(patch)
+        node_id = patch["id"]
+        current = self.items.get(node_id, {"id": node_id, "valid": 0, "project_id": b""})
+        current.update(patch)
+        self.items[node_id] = current
 
 
 class InMemoryUserRepository:
@@ -86,11 +99,11 @@ class InMemoryUserRepository:
 
 
 class StubFederatedTrainingService(FederatedTrainingService):
-    def run(self, project_row, num_rounds, on_progress=None):
+    def run(self, project_row, num_rounds, node_ids, on_progress=None):
         return {
             "training_results_entry": {
                 "train_id": "fed_test",
-                "config": {"total_clients": ["a"]},
+                "config": {"total_clients": list(node_ids)},
                 "results_per_round": [],
                 "final_metrics": {"total_time_seconds": 1.0},
             },
@@ -147,7 +160,11 @@ def test_run_federated_training_use_case_updates_training_results():
             "type": "classification",
         }
     )
-    use_case = RunFederatedTrainingUseCase(project_repo, StubFederatedTrainingService())
+    use_case = RunFederatedTrainingUseCase(
+        project_repo,
+        node_repo,
+        StubFederatedTrainingService(),
+    )
     result = use_case.execute(project_id, 2)
     assert result.ok is True
     updated = project_repo.get_by_id(project_id)
@@ -182,9 +199,9 @@ def test_get_project_metrics_use_case_returns_payload():
         "description": "",
         "type": "classification",
         "training_results": training_results,
-        "nodes": "[]",
     }
-    use_case = GetProjectMetricsUseCase(project_repo, metrics_service)
+    node_repo = InMemoryNodeRepository()
+    use_case = GetProjectMetricsUseCase(project_repo, node_repo, metrics_service)
     result = use_case.execute(b"id1")
     assert result.ok is True
     assert "metrics" in result.data

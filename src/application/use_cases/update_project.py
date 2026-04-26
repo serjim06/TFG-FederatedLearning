@@ -34,11 +34,12 @@ class UpdateProjectUseCase:
             "parameters": json.dumps(form_data["parameters"]),
             "aggregation_strategy": form_data["aggregation_strategy"],
             "metrics": form_data["metrics"],
-            "nodes": json.dumps(form_data["initial_nodes"]),
         }
         project_row = self.project_repository.update(update_payload)
-        old_nodes = {uuid.UUID(node_id).bytes for node_id in json.loads(previous_project_row["nodes"])}
-        new_nodes = {uuid.UUID(node_id).bytes for node_id in json.loads(project_row["nodes"])}
+        old_nodes = {
+            node["id"] for node in self.node_repository.list_by_project_id(project_id)
+        }
+        new_nodes = {uuid.UUID(node_id).bytes for node_id in form_data["initial_nodes"]}
         removed = old_nodes - new_nodes
         for node_id in removed:
             if on_node_removed is not None:

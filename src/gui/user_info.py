@@ -1,10 +1,10 @@
-import json
 import tkinter as tk
 from tkinter import ttk
 import uuid
 
 from src.application.use_cases.delete_user import DeleteUserUseCase
 from src.infrastructure.repositories.sqlite_project_repository import SQLiteProjectRepository
+from src.infrastructure.repositories.sqlite_node_repository import SQLiteNodeRepository
 from src.infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from src.utils import utils
 from src.gui import dialogs
@@ -60,6 +60,7 @@ class UserInfoDialog(tk.Toplevel):
         self.role_label.pack(anchor="w", pady=5)
         
         project_repo = SQLiteProjectRepository()
+        node_repo = SQLiteNodeRepository()
         self.user_projects = project_repo.list_by_user(user_data["id"])
         
         self.projects_label = tk.Label(self.frame, text="Projects:", font=("Arial", 10, "bold"), bg="#eef4fb")
@@ -70,10 +71,11 @@ class UserInfoDialog(tk.Toplevel):
             project_label = tk.Label(project_frame, text=f"- {project['name']}", font=("Arial", 10), bg="#eef4fb")
             project_label.pack(anchor="w", padx=20)
             nodes_frame = tk.Frame(project_frame, bg="#eef4fb", bd=1, relief="solid")
-            nodes = json.loads(project['nodes'])
+            nodes = node_repo.list_by_project_id(project["id"])
             tk.Label(nodes_frame, text="  Nodes:", font=("Arial", 10, "bold"), bg="#eef4fb").pack(anchor="w", padx=30)
             for node in nodes:
-                tk.Label(nodes_frame, text=f"  - {node}", font=("Arial", 10), bg="#eef4fb").pack(anchor="w", padx=40)
+                node_id = str(uuid.UUID(bytes=node["id"]))
+                tk.Label(nodes_frame, text=f"  - {node_id}", font=("Arial", 10), bg="#eef4fb").pack(anchor="w", padx=40)
             nodes_frame.pack(fill="both", expand=True, padx=10, pady=5)
             project_frame.pack(fill="both", expand=True, padx=10, pady=5)
             
