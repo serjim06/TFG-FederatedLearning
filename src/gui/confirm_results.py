@@ -1,13 +1,11 @@
 import json
 import tkinter as tk
 from collections.abc import Callable
-from pathlib import Path
-import re
-import shutil
-from sqlite3 import DatabaseError
 from tkinter import ttk
 
-from src.db import dbcon
+from src.application.services.dataset_service import DatasetService
+from src.application.use_cases.confirm_pending_result import ConfirmPendingResultUseCase
+from src.infrastructure.repositories.sqlite_project_repository import SQLiteProjectRepository
 from src.gui import dialogs
 from src.utils import utils
 
@@ -105,6 +103,10 @@ class ConfirmResultsFrame (tk.Frame):
         self.cur_round = cur_round
         self._project_id = project_id
         self._on_unconfirmed_persisted = on_unconfirmed_persisted
+        self._confirm_pending_use_case = ConfirmPendingResultUseCase(
+            SQLiteProjectRepository(),
+            DatasetService(),
+        )
         
         self.configure(bg=utils.BG_COLOR)
         utils.get_style()
@@ -135,17 +137,9 @@ class ConfirmResultsFrame (tk.Frame):
         """Write remaining pending items to storage and notify listeners."""
         if self._project_id is None:
             return
-        try:
-            dbcon.command(
-                "update",
-                "projects",
-                {
-                    "id": self._project_id,
-                    "unconfirmed_results": json.dumps(self.pending, ensure_ascii=False),
-                },
-            )
-        except DatabaseError as e:
-            dialogs.InfoDialog(self, "Error", str(e), "error")
+        result = self._confirm_pending_use_case.persist_unconfirmed(self._project_id, self.pending)
+        if not result.ok:
+            dialogs.InfoDialog(self, "Error", result.error or "No se pudo persistir resultados pendientes", "error")
             return
         if self._on_unconfirmed_persisted is not None:
             self._on_unconfirmed_persisted()
@@ -188,13 +182,17 @@ class ConfirmResultsFrame (tk.Frame):
         Args:
             row (int): The row index of the result to confirm.
         """
-        path = self._get_last_dataset(row)
-                
-        with open(path, "a", encoding="utf-8") as f:
-            line = ",".join(
-                str(feature) for _, feature in self.pending[row - 1]["data"].items()
-            )
-            f.write(line + "\n")
+        in_labels = self._confirm_pending_use_case.parse_label_json(self.labels["in_features"])
+        out_labels = self._confirm_pending_use_case.parse_label_json(self.labels["out_features"])
+        result = self._confirm_pending_use_case.append_confirmed_row(
+            self.pending[row - 1],
+            self.cur_round,
+            in_labels,
+            out_labels,
+        )
+        if not result.ok:
+            dialogs.InfoDialog(self, "Error", result.error or "No se pudo confirmar resultado", "error")
+            return
         
         dialogs.InfoDialog(self, "Confirmación", f"Resultado confirmado para el nodo {self.pending[row-1]['node']}", "info")
         del self.pending[row-1]
@@ -212,52 +210,19 @@ class ConfirmResultsFrame (tk.Frame):
         correct_dialog.grab_set()
         correct_dialog.focus_set()
         
-    def _get_last_dataset(self, row):
-        path = Path(__file__).parent.parent.parent / "database" / "datasets" / self.pending[row-1]["node"]
-        pattern = re.compile(r"dataset_(\d+)\.csv")
-        
-        found_files = []
-        
-        for f in path.glob('dataset_*.csv'):
-            coincidence = pattern.search(f.name)
-            if coincidence:
-                round_number = int(coincidence.group(1))
-                found_files.append((round_number, f))
-                
-        if found_files:
-            last_dataset, file_path = max(found_files, key=lambda x: x[0])
-            if last_dataset != self.cur_round:
-                dest = Path(__file__).parent.parent.parent / "database" / "datasets" / self.pending[row-1]["node"] / f"dataset_{self.cur_round}.csv"
-                shutil.copy2(file_path, dest)
-                file_path = dest
-        else:
-            file_path = self._create_new_dataset(row)        
-        
-        return file_path
-        
-    def _create_new_dataset(self, row):
-        path = Path(__file__).parent.parent.parent / "database" / "datasets" / self.pending[row-1]["node"] / f"dataset_{self.cur_round}.csv"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        
-        in_labels = json.loads(self.labels["in_features"])
-        out_labels = json.loads(self.labels["out_features"])
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(",".join(in_labels + out_labels) + "\n")
-            
-        return path
-        
     def correct_result(self, row, out_features):
-        path = self._get_last_dataset(row)
-        
-        in_labels = json.loads(self.labels["in_features"])
-        parts = []
-        for key, feature in self.pending[row - 1]["data"].items():
-            if key in in_labels:
-                parts.append(str(feature))
-        for _, value in out_features.items():
-            parts.append(str(value))
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(",".join(parts) + "\n")
+        in_labels = self._confirm_pending_use_case.parse_label_json(self.labels["in_features"])
+        out_labels = self._confirm_pending_use_case.parse_label_json(self.labels["out_features"])
+        result = self._confirm_pending_use_case.append_corrected_row(
+            self.pending[row - 1],
+            out_features,
+            self.cur_round,
+            in_labels,
+            out_labels,
+        )
+        if not result.ok:
+            dialogs.InfoDialog(self, "Error", result.error or "No se pudo corregir resultado", "error")
+            return
         
         dialogs.InfoDialog(self, "Confirmación", f"Resultado corregido para el nodo {self.pending[row-1]['node']}", "info")
         del self.pending[row-1]

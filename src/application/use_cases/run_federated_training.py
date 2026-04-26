@@ -1,0 +1,63 @@
+import json
+from typing import Any, Callable
+
+from src.application.dto.operation_result import OperationResult
+from src.application.repositories.project_repository import ProjectRepository
+from src.application.services.federated_training_service import FederatedTrainingService
+from src.models.node import merge_project_training_results
+
+
+ProgressCallback = Callable[[int, int, str, float | None], None]
+
+
+class RunFederatedTrainingUseCase:
+    """Run federated rounds and persist resulting project state."""
+
+    def __init__(
+        self,
+        project_repository: ProjectRepository,
+        training_service: FederatedTrainingService,
+    ):
+        self.project_repository = project_repository
+        self.training_service = training_service
+
+    def execute(
+        self,
+        project_id: bytes,
+        rounds: int,
+        on_progress: ProgressCallback | None = None,
+    ) -> OperationResult[dict[str, Any]]:
+        """Execute one federated training job for one project."""
+        project_row = self.project_repository.get_by_id(project_id)
+        if not project_row:
+            return OperationResult(ok=False, error="No se encontró el proyecto.")
+        nodes = json.loads(project_row["nodes"]) if project_row.get("nodes") else []
+        if not nodes:
+            return OperationResult(
+                ok=False,
+                error="El proyecto no tiene nodos asignados. Añade nodos en la configuración del proyecto.",
+            )
+        out = self.training_service.run(project_row, rounds, on_progress=on_progress)
+        merged = merge_project_training_results(
+            project_row.get("training_results"),
+            out["training_results_entry"],
+        )
+        update_payload: dict[str, Any] = {"id": project_id, "training_results": merged}
+        if not project_row.get("type"):
+            update_payload["type"] = (
+                "regression"
+                if (project_row.get("metrics") or "") == "mean_squared_error"
+                else "classification"
+            )
+        cur_data_round = int(project_row.get("training_round") or 0)
+        update_payload["training_round"] = cur_data_round + int(rounds) + 1
+        self.project_repository.update(update_payload)
+        return OperationResult(
+            ok=True,
+            data={
+                "merged_training_results": merged,
+                "total_time_seconds": out["total_time_seconds"],
+                "project_row": project_row,
+                "rounds": rounds,
+            },
+        )

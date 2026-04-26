@@ -3,7 +3,9 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 import uuid
 
-from src.db import dbcon
+from src.application.use_cases.list_managed_users import ListManagedUsersUseCase
+from src.infrastructure.repositories.sqlite_project_repository import SQLiteProjectRepository
+from src.infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from src.utils.icons import image_finder
 from src.utils.user import User
 from src.utils import utils
@@ -14,6 +16,10 @@ class UserListFrame(tk.Frame):
         super().__init__(parent)
         self.switch_frame = switch_frame
         self.user = usuario.to_dict()
+        self._list_managed_users_use_case = ListManagedUsersUseCase(
+            SQLiteUserRepository(),
+            SQLiteProjectRepository(),
+        )
         
         self._setup_toolbox()
         
@@ -47,8 +53,9 @@ class UserListFrame(tk.Frame):
     
     def populate(self):
         self.clear_users()
-        self.users = dbcon.command("select", "users", {"id": "*"})
-        for user in self.users:
+        result = self._list_managed_users_use_case.execute(self.user["id"])
+        users = result.data or []
+        for user in users:
             real_user = User(
                 id=user["id"],
                 username=user["username"],
@@ -56,9 +63,9 @@ class UserListFrame(tk.Frame):
                 password_hash=user.get("password_hash"),
                 recovery_phrase_hash=user.get("recovery_phrase_hash"),
             )
-            if real_user.id == self.user["id"]:
-                continue
-            card = UserCard(self.frame, real_user.to_dict(), self)
+            payload = real_user.to_dict()
+            payload["project_count"] = user["project_count"]
+            card = UserCard(self.frame, payload, self)
             card.pack(fill="x", pady=5, expand=True)
             
             
@@ -90,7 +97,7 @@ class UserCard(tk.Frame):
         self.id_label = tk.Label(self, text=f"User ID: {str(uuid.UUID(bytes=user_data['id']))}", bg="#eeeeee", font=("Arial", 10))
         self.id_label.pack(anchor="w")
         
-        n_projects = len(dbcon.command("select", "projects", {"uid": user_data["id"]}))
+        n_projects = user_data.get("project_count", 0)
         
         self.n_projects_label = tk.Label(self, text=f"Amount of projects: {n_projects}", bg="#eeeeee", font=("Arial", 10))
         self.n_projects_label.pack(anchor="w")

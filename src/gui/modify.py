@@ -1,12 +1,10 @@
 import tkinter as tk
-from sqlite3 import DatabaseError
 from tkinter import ttk
-from src.db import dbcon
+from src.application.use_cases.update_user_profile import UpdateUserProfileUseCase
+from src.infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from src.utils.user import User
 import src.utils.utils as utils
 from src.gui import dialogs
-from src.security.auth_policy import validate_password_strength, validate_recovery_phrase
-from src.security.passwords import hash_password
 
 class ModifyPanel(tk.Frame):
     def __init__(self, parent, switch_frame, usuario):
@@ -14,6 +12,7 @@ class ModifyPanel(tk.Frame):
         self.configure(bg="#eef4fb")
         self.switch_frame = switch_frame
         self.usuario = usuario
+        self._update_user_profile_use_case = UpdateUserProfileUseCase(SQLiteUserRepository())
 
         self.columnconfigure(0, weight=1)
 
@@ -85,54 +84,29 @@ class ModifyPanel(tk.Frame):
         recovery_phrase = self.recovery_entry.get().strip()
         recovery_confirm = self.recovery_confirm_entry.get().strip()
 
-        usuario = {"id": self.usuario['id']}
-        row = dbcon.command("select", "users", {"id": self.usuario["id"]})
-        if not row:
-            dialogs.InfoDialog(self, "Error", "No se pudo cargar la cuenta actual", "error")
-            return
-        current = row[0]
-        new_user = User(
-            self.usuario['id'],
-            self.usuario['username'],
-            self.usuario['role'],
-            current.get("password_hash"),
-            current.get("recovery_phrase_hash"),
-        )
-
-        if not user:
-            dialogs.InfoDialog(self, "Error", "El usuario no puede estar vacío", "error")
-            return
-
-        if user != self.usuario['username']:
-            usuario['username'] = user
-            new_user['username'] = user
-
-        if passwd or passwd_confirm:
-            if passwd != passwd_confirm:
-                dialogs.InfoDialog(self, "Error", "Las contraseñas no coinciden", "error")
-                return
-            validate_password_strength(passwd)
-            usuario["password_hash"] = hash_password(passwd)
-            new_user["password_hash"] = usuario["password_hash"]
-
-        if recovery_phrase or recovery_confirm:
-            if recovery_phrase != recovery_confirm:
-                dialogs.InfoDialog(self, "Error", "Las frases de recuperación no coinciden", "error")
-                return
-            validate_recovery_phrase(recovery_phrase)
-            usuario["recovery_phrase_hash"] = hash_password(recovery_phrase)
-            new_user["recovery_phrase_hash"] = usuario["recovery_phrase_hash"]
-
-        if len(usuario) == 1:
-            dialogs.InfoDialog(self, "Error", "No hay cambios para guardar", "error")
-            return
-
         try:
-            dbcon.command("update","users", usuario)
+            result = self._update_user_profile_use_case.execute(
+                self.usuario["id"],
+                user,
+                passwd,
+                passwd_confirm,
+                recovery_phrase,
+                recovery_confirm,
+            )
+            if not result.ok:
+                dialogs.InfoDialog(self, "Error", result.error or "No se pudo actualizar el perfil", "error")
+                return
+            updated = result.data
+            new_user = User(
+                updated["id"],
+                updated["username"],
+                updated["role"],
+                updated.get("password_hash"),
+                updated.get("recovery_phrase_hash"),
+            )
             dialogs.InfoDialog(self, "Success", "Los datos se han modificado correctamente", "info")
-
             self.switch_frame("modified_profile", new_user)
 
-        except (ValueError, DatabaseError) as e:
+        except ValueError as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return

@@ -125,7 +125,7 @@ def _fetch_node_row(node_id: bytes) -> dict:
 
 
 def _fetch_project_for_node(node_id: bytes) -> dict:
-    """Obtiene la fila del proyecto asociado al nodo"""
+    """Return the project row associated with the node."""
     n = _fetch_node_row(node_id)
     pid = n.get("project_id")
     if pid is None or pid == "":
@@ -137,7 +137,7 @@ def _fetch_project_for_node(node_id: bytes) -> dict:
 
 
 def _dataset_csv_path(node_id: bytes, project_row: dict) -> Path:
-    """Ruta al CSV de la ronda actual del nodo (misma lógica que la GUI)."""
+    """Path to the node's current-round CSV (same logic as the GUI)."""
     r = int(project_row.get("training_round") or 0)
     node_dir = DATASETS_ROOT / f"node_{_node_uuid_str(node_id)}"
     path = node_dir / f"dataset_{r}.csv"
@@ -224,9 +224,9 @@ def _metadata_categorical_columns(
     metadata: Optional[dict], in_features: list[str]
 ) -> Optional[list[str]]:
     """
-    Lista explícita de nombres de columna de entrada tratadas como categóricas.
-    ``None`` = inferir por fila (si no es float, OrdinalEncoder).
-    Lista vacía = solo inferencia (mismo efecto que ausencia de clave en la práctica).
+    Explicit list of input column names treated as categorical.
+    ``None`` = infer per row (if not float, use OrdinalEncoder).
+    Empty list = inference only (same effect as missing key in practice).
     """
     if not isinstance(metadata, dict):
         return None
@@ -243,8 +243,8 @@ def _try_read_rows_by_column_names(
     path: Path, expected: list[str]
 ) -> Optional[list[list[str]]]:
     """
-    Si la cabecera del CSV contiene exactamente las columnas ``expected`` (sin
-    importar el orden), devuelve las filas ya ordenadas según ``expected``.
+    If the CSV header contains exactly the ``expected`` columns (regardless
+    of order), return rows already ordered according to ``expected``.
     """
     with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
         reader = csv.DictReader(f)
@@ -328,7 +328,7 @@ def _load_xy_from_csv(
     metadata: Optional[dict],
     task: Optional[str] = None,
 ) -> tuple[np.ndarray, np.ndarray, Optional[LabelEncoder]]:
-    """Construye matrices X, y (y opcional encoder de etiquetas para clasificación)."""
+    """Build X and y matrices (and optional label encoder for classification)."""
     expected = list(in_features) + list(out_features)
     n_in, n_out = len(in_features), len(out_features)
     y_raw: list[list[Any]]
@@ -450,7 +450,7 @@ def _make_loaders(
 
 
 def _instantiate_model(project_row: dict):
-    """Carga el módulo .py del proyecto y devuelve una instancia de la subclase de BaseModel."""
+    """Load the project's .py module and return a BaseModel subclass instance."""
     mp = _resolve_model_path(project_row["model_path"])
     mod = cargar_modulo(mp)
     cls = verificar_modulo(mod)
@@ -578,7 +578,7 @@ def _train_loop_scaffold(
     device: torch.device,
     correction_by_param: dict[str, torch.Tensor],
 ) -> int:
-    """Entrena con corrección SCAFFOLD en cada paso local."""
+    """Train with SCAFFOLD correction at each local step."""
     net = net.to(device)
     opt = _optimizer(optimizer_name, net.parameters(), learning_rate)
     steps = 0
@@ -672,7 +672,7 @@ def _gather_predictions(
     task: str,
     metrics: str,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Acumula etiquetas y predicciones en el conjunto (p. ej. validación) para informes."""
+    """Accumulate labels and predictions on the dataset (e.g. validation) for reports."""
     net.eval()
     ys_true: list[np.ndarray] = []
     ys_pred: list[np.ndarray] = []
@@ -738,10 +738,10 @@ def build_training_results_entry(
     eval_result: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """
-    Construye un objeto compatible con ``training_results`` en BD: informes PDF,
-    ``get_metrics_per_round``, ``get_time_per_round`` y ``ProjectMetricsDialog``.
+    Build an object compatible with ``training_results`` in DB: PDF reports,
+    ``get_metrics_per_round``, ``get_time_per_round``, and ``ProjectMetricsDialog``.
 
-    Puede serializarse con ``json.dumps`` y añadirse al array guardado en ``projects.training_results``.
+    It can be serialized with ``json.dumps`` and appended to the array stored in ``projects.training_results``.
     """
     node_str = _node_uuid_str(node_id)
     total_clients = _project_total_client_ids(project_row)
@@ -821,8 +821,8 @@ def merge_project_training_results(
     new_entry: dict[str, Any],
 ) -> str:
     """
-    Añade ``new_entry`` al array JSON almacenado en ``projects.training_results``.
-    ``existing`` puede ser el string JSON actual, una lista ya parseada o vacío.
+    Append ``new_entry`` to the JSON array stored in ``projects.training_results``.
+    ``existing`` can be the current JSON string, an already parsed list, or empty.
     """
     if existing is None or existing == "":
         arr: list = []
@@ -915,13 +915,13 @@ def train(
     seed: int = 0,
 ) -> dict[str, Any]:
     """
-    Entrena el modelo del proyecto con el dataset local del nodo (paso local tipo ``Client.fit``).
+    Train the project model with the node local dataset (local step like ``Client.fit``).
 
     Returns
     -------
-    dict con ``num_examples_train``, ``num_examples_val``, ``config``, ``history``,
-    ``training_time_seconds``, ``training_results_entry`` (formato listo para
-    ``projects.training_results`` / informes / vista de métricas) y ``model_path``.
+    dict with ``num_examples_train``, ``num_examples_val``, ``config``, ``history``,
+    ``training_time_seconds``, ``training_results_entry`` (format ready for
+    ``projects.training_results`` / reports / metrics view), and ``model_path``.
     """
     project_row = project or _fetch_project_for_node(node.id)
     params = project_row["parameters"]
@@ -1015,13 +1015,13 @@ def evaluate(
     seed: int = 0,
 ) -> dict[str, Any]:
     """
-    Evalúa el modelo en el conjunto de validación obtenido del mismo CSV (tipo ``Client.evaluate``).
+    Evaluate the model on the validation split obtained from the same CSV (like ``Client.evaluate``).
 
     Returns
     -------
-    dict con ``num_examples``, ``loss``, ``result``, ``evaluation_time_seconds``,
-    ``training_results_entry`` (misma forma que tras ``train``, útil para informes)
-    y ``model_path``.
+    dict with ``num_examples``, ``loss``, ``result``, ``evaluation_time_seconds``,
+    ``training_results_entry`` (same shape as after ``train``, useful for reports),
+    and ``model_path``.
     """
     project_row = project or _fetch_project_for_node(node.id)
     params = project_row["parameters"]
@@ -1098,10 +1098,10 @@ def predict(
     project: Optional[dict] = None,
 ) -> Any:
     """
-    Inferencia local con el ``nn.Module`` del proyecto.
+    Local inference with the project ``nn.Module``.
 
-    ``input_data`` puede ser un ``dict`` ``{nombre_columna: valor}``, una lista de valores
-    en el orden de ``input_features``, o un tensor (filas = batch).
+    ``input_data`` can be a ``dict`` ``{column_name: value}``, a list of values
+    in ``input_features`` order, or a tensor (rows = batch).
     """
     project_row = project or _fetch_project_for_node(node.id)
     model, model_path = _instantiate_model(project_row)

@@ -1,7 +1,7 @@
 """
-Modelo pequeño (MLP) para datos tabulares tipo Iris: 4 características → 3 clases.
-Pensado para pruebas locales y federadas; el archivo ``model_path`` del proyecto
-apunta a este .py. Los pesos entrenados los gestiona ``src.models.node`` (``.pth`` por ``train_id``).
+Small (MLP) model for Iris-like tabular data: 4 features → 3 classes.
+Designed for local and federated tests; the project ``model_path`` file
+points to this .py. Trained weights are managed by ``src.models.node`` (``.pth`` per ``train_id``).
 """
 
 from __future__ import annotations

@@ -10,8 +10,6 @@ import torch.nn as nn
 from src.models.base_model import BaseModel
 
 INPUT_FEATURES: list[str] = [
-    "Date",
-    "Time",
     "CO(GT)",
     "PT08.S1(CO)",
     "NMHC(GT)",

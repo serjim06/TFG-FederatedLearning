@@ -5,22 +5,22 @@ import torch.nn as nn
 
 class BaseModel(ABC):
     """
-    Contrato del modelo de usuario: define cómo construir/cargar la red PyTorch y qué
-    columnas/features usa el proyecto. El entrenamiento, la evaluación y la predicción
-    se implementan en ``src.models.node``.
+    User model contract: defines how to build/load the PyTorch network and which
+    columns/features the project uses. Training, evaluation, and prediction
+    are implemented in ``src.models.node``.
     """
 
     @abstractmethod
     def load_model(self, model_path) -> nn.Module:
-        """Devuelve el módulo PyTorch (arquitectura y, si aplica, pesos cargados desde ``model_path``)."""
+        """Return the PyTorch module (architecture and, if applicable, weights loaded from ``model_path``)."""
         pass
 
     @abstractmethod
     def get_features(self) -> dict:
         """
-        Diccionario con al menos ``input_features`` y ``output_features`` (listas de nombres).
-        Opcionalmente ``metadata`` con ``type`` (``regression`` | ``classification``),
-        ``categorical_columns`` (nombres de columnas de entrada con texto categórico a codificar),
-        ``labels`` (clasificación), ``units``, etc., para informes y para formatear predicciones.
+        Dictionary with at least ``input_features`` and ``output_features`` (lists of names).
+        Optionally ``metadata`` with ``type`` (``regression`` | ``classification``),
+        ``categorical_columns`` (input column names with categorical text to encode),
+        ``labels`` (classification), ``units``, etc., for reports and prediction formatting.
         """
         pass

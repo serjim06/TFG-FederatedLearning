@@ -353,6 +353,7 @@ class TrackingSSFed(_FedStrategyRoundTracking, FedAvg):
             "ssfed_selection_ratio": float(selected_idx.size) / float(max(n_clients, 1)),
             "ssfed_threshold": float(self._z_threshold),
         }
+        self._snapshots.append([np.asarray(a, dtype=np.float32).copy() for a in aggregated])
         return out_parameters, out_metrics
 
 

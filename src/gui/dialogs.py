@@ -130,11 +130,7 @@ class OptionDialog(BaseDialog):
 
 class FederatedRoundsDialog(BaseDialog):
     """
-    Pide el número de rondas federadas.
-
-    Si pasas ``on_confirm``, al pulsar *Iniciar* se cierra el diálogo y se programa
-    ``on_confirm(rondas)`` en el hilo principal (sin ``wait_window`` en el llamador).
-    Si no, usa ``result`` y el patrón clásico con ``wait_window``.
+    Ask for the number of federated rounds for the federated training dialog.
     """
 
     def __init__(

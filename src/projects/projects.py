@@ -44,12 +44,12 @@ class Project:
                 - "fed_ssfed": Statistical Significance Federated aggregation
                 - "fed_prox": Federated Proximal
             initial_nodes (list): project initial nodes
-            metrics (string): función de pérdida del proyecto. Posibles valores:
-                    - "categorical_crossentropy". Valor por defecto (clasificación).
+            metrics (string): project loss function. Possible values:
+                    - "categorical_crossentropy". Default value (classification).
                     - "sparse_categorical_crossentropy"
                     - "binary_crossentropy"
-                    - "mean_squared_error" (regresión)
-                task_type en parameters: "classification" | "regression" (prioridad sobre metadata del modelo).
+                    - "mean_squared_error" (regression)
+                task_type in parameters: "classification" | "regression" (priority over model metadata).
         """
         self.id = id
         self.uid = uid
@@ -138,11 +138,11 @@ def cargar_modulo(ruta):
     return modulo
     
 def verificar_modulo(modulo):
-    """Verifica que el módulo cargado contenga una clase que herede de BaseModel.
+    """Verify that the loaded module contains a class inheriting from BaseModel.
     Args:
-        modulo: El módulo cargado dinámicamente.
+        modulo: The dynamically loaded module.
     Returns: 
-        La clase que hereda de BaseModel si se encuentra, o None si no se encuentra.
+        The class inheriting from BaseModel if found, or None otherwise.
     """
     for _, obj in inspect.getmembers(modulo, inspect.isclass):
         if issubclass(obj, BaseModel) and obj is not BaseModel:

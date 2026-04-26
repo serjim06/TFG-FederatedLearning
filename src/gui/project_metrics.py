@@ -1,212 +1,15 @@
 import tkinter as tk
 from tkinter import ttk
-from sklearn.metrics import mean_absolute_error, r2_score, f1_score
+
 import numpy as np
-from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
-import re
-from pathlib import Path
-from collections import Counter
 
+from src.application.services.project_metrics_calculations import round_indices_for_metrics
 from src.utils import utils
 from src.gui.dialogs import InfoDialog
-
-def get_metrics_per_round(training_data, project_type):
-    """Get the metrics per round for a given training data and project type.
-    
-    Args:
-        training_data (list): The training data.
-        project_type (str): The type of project.
-
-    Returns:
-        list: The metrics per round.
-    """
-    
-    if project_type == "classification":
-        return _get_classification_metrics(training_data)
-    metrics, _, _ = _get_regression_metrics(training_data)
-    return metrics
-
-
-def get_regression_metrics_bundle(training_data):
-    return _get_regression_metrics(training_data)
-
-def _get_classification_metrics(training_data):
-    metrics = []
-    for training in training_data:
-        total_clients = max(len(training["config"]["total_clients"]), 1)
-        for r in training["results_per_round"]:
-            loss = r["global_loss"]
-            acc = r.get("global_accuracy", 0.0)
-            cs = r.get("client_stats") or []
-            part = float(r.get("participating_clients", len(cs))) / total_clients
-            has_cm = bool(
-                cs
-                and isinstance(cs[0], dict)
-                and "confusion_matrix" in cs[0]
-            )
-            if has_cm:
-                y_true: list[int] = []
-                y_pred: list[int] = []
-                for client in cs:
-                    matrix = np.array(client["confusion_matrix"])
-                    for i in range(matrix.shape[0]):
-                        for j in range(matrix.shape[1]):
-                            amount = matrix[i, j]
-                            y_true.extend([i] * amount)
-                            y_pred.extend([j] * amount)
-                f1 = float(f1_score(y_true, y_pred, average="weighted"))
-            else:
-                f1 = float("nan")
-
-            metrics.append(
-                {
-                    "loss": loss,
-                    "accuracy": acc,
-                    "f1": f1,
-                    "participation": part,
-                }
-            )
-
-    return metrics
-
-
-def _round_indices_for_metrics(metrics: list) -> list[int]:
-    return list(range(1, len(metrics) + 1))
-
-def get_datasets_changes(nodes):
-    """
-    Collects datasets changes for each node
-
-    Args:
-        nodes (list[str]): List of nodes
-
-    Returns:
-        dict: Dictionary of datasets changes
-    """
-
-    datasets_changes = {}
-    composed_changes = {}
-
-    for node in nodes:
-        path = Path(__file__).parent.parent.parent / "database" / "datasets" / node
-        pattern = re.compile(r"dataset_(\d+)\.csv")
-        
-        found_files = []
-
-        if not path.exists():
-            continue
-        
-        for f in path.glob('dataset_*.csv'):
-            coincidence = pattern.search(f.name)
-            if coincidence:
-                round_number = int(coincidence.group(1))
-                found_files.append((round_number, f))
-
-        if len(found_files) > 0:
-            datasets_changes[node] = _get_files_changes(found_files)
-            for change in datasets_changes[node].values():
-                if not isinstance(change, dict):
-                    continue
-                if change["round"] not in composed_changes:
-                    composed_changes[change["round"]] = {"added": [], "length": 0}
-                
-                composed_changes[change["round"]]["added"].extend(change["added"])
-                composed_changes[change["round"]]["length"] += change["length"]
-    
-    return {"datasets_changes": datasets_changes, "composed_changes": composed_changes}
-    
-
-def _get_files_changes(files):
-    """
-    Calculates the changes between files
-
-    Args:
-        files (list[tuple]): List of files
-
-    Returns:
-        dict: Dictionary of files changes
-    """
-
-    changes = {}
-
-    sorted_files = sorted(files, key=lambda x: x[0])
-
-    file_0 = sorted_files[0][1]
-    
-    with open(file_0, "r") as f:
-        lines_prev = f.readlines()
-        
-        changes[0] = {"round": sorted_files[0][0], "added": [], "length": len(lines_prev)-1}
-
-        for line in lines_prev[1:]:
-            changes[0]["added"].append(line.strip().split(","))
-    
-    for i in range(1, len(sorted_files)):
-        file_i = sorted_files[i][1]
-        with open(file_i, "r") as f:
-            lines_curr = f.readlines()
-            
-            changes[i] = {"round": sorted_files[i][0], "added": [], "length": len(lines_curr)-1}
-            prev_counter = Counter(line.strip() for line in lines_prev[1:])
-            curr_counter = Counter(line.strip() for line in lines_curr[1:])
-
-            for row_text, curr_count in curr_counter.items():
-                added_count = curr_count - prev_counter.get(row_text, 0)
-                if added_count > 0:
-                    for _ in range(added_count):
-                        changes[i]["added"].append(row_text.split(","))
-    
-            lines_prev = lines_curr
-
-    return changes
-            
-
-def _get_regression_metrics(training_data):
-    metrics = []
-    y_true_total: list[float] = []
-    y_pred_total: list[float] = []
-    for training in training_data:
-        total_clients = max(len(training["config"]["total_clients"]), 1)
-        for r in training["results_per_round"]:
-            loss = r["global_loss"]
-            cs = r.get("client_stats") or []
-            part = float(r.get("participating_clients", len(cs))) / total_clients
-            has_y = bool(
-                cs and isinstance(cs[0], dict) and "y_true" in cs[0]
-            )
-            if has_y:
-                y_true: list[float] = []
-                y_pred: list[float] = []
-                for client in cs:
-                    y_true.extend(client["y_true"])
-                    y_pred.extend(client["y_pred"])
-                y_true_total.extend(y_true)
-                y_pred_total.extend(y_pred)
-                r2 = float(r2_score(y_true, y_pred))
-            else:
-                r2 = float("nan")
-
-            metrics.append(
-                {
-                    "loss": loss,
-                    "r2": r2,
-                    "participation": part,
-                }
-            )
-
-    return metrics, y_true_total, y_pred_total
-
-def get_time_per_round(training_data):
-    time_per_round = []
-    for training in training_data:
-        for r in training["results_per_round"]:
-            time_per_round.append(r["time"])
-    return time_per_round
-
 
 
 class ProjectMetricsDialog(tk.Toplevel):
@@ -443,7 +246,7 @@ class ProjectMetricsDialog(tk.Toplevel):
         is_classification = self.project_data.get("type") == "classification"
         mtr_key = "f1" if is_classification else "r2"
 
-        rondas = _round_indices_for_metrics(metrics)
+        rondas = round_indices_for_metrics(metrics)
         lista_loss = [m.get("loss", 0) for m in metrics]
 
         if is_classification:
@@ -505,6 +308,13 @@ class ProjectMetricsDialog(tk.Toplevel):
 
         y_true = self.project_data["y_true"]
         y_pred = self.project_data["y_pred"]
+        if not y_true or not y_pred:
+            tk.Label(
+                frame,
+                text="No hay y_true/y_pred persistidos para mostrar dispersión.",
+                bg=utils.BG_COLOR,
+            ).pack()
+            return
 
         fig, ax = plt.subplots(figsize=(4,3), dpi=100)
         ax.scatter(y_true, y_pred)
@@ -537,7 +347,7 @@ class ProjectMetricsDialog(tk.Toplevel):
         metrics = self.project_data.get("metrics", [])
         loss = [m.get("loss", 0) for m in metrics]
         participation = [m.get("participation", 0) for m in metrics]
-        rounds_metrics = _round_indices_for_metrics(metrics)
+        rounds_metrics = round_indices_for_metrics(metrics)
         
         datasets_changes = self.project_data.get("datasets_changes", {})
         composed_changes = datasets_changes.get("composed_changes", {})

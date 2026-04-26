@@ -1,11 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
-from src.db import dbcon
+from src.application.use_cases.recover_password import RecoverPasswordUseCase
+from src.infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from src.gui import dialogs
 from src.utils.user import User
 import src.utils.utils as utils
-from src.security.auth_policy import validate_password_strength, validate_recovery_phrase
-from src.security.passwords import hash_password, verify_password
 
 class RecoverFrame(tk.Frame):
     def __init__(self, parent, switch_frame):
@@ -21,6 +20,7 @@ class RecoverFrame(tk.Frame):
 
         self.switch_frame = switch_frame
         self.new_user : User = None
+        self._recover_password_use_case = RecoverPasswordUseCase(SQLiteUserRepository())
 
         self.content_frame = tk.Frame(self, bg="#eef4fb")
         self.content_frame.pack(fill="x", pady=20)
@@ -57,12 +57,12 @@ class RecoverFrame(tk.Frame):
             return
 
         try:
-            result = dbcon.command("select","users", {"username": user})
-            if not result:
-                dialogs.InfoDialog(self, "Error", "Usuario o credenciales de recuperación incorrectos", "error")
+            result = self._recover_password_use_case.load_recoverable_user(user)
+            if not result.ok:
+                dialogs.InfoDialog(self, "Error", result.error or "Usuario o credenciales de recuperación incorrectos", "error")
                 return
 
-            row = result[0]
+            row = result.data
             self.new_user = User(
                 id=row["id"],
                 username=row["username"],
@@ -70,14 +70,6 @@ class RecoverFrame(tk.Frame):
                 password_hash=row.get("password_hash"),
                 recovery_phrase_hash=row.get("recovery_phrase_hash"),
             )
-            if not self.new_user["recovery_phrase_hash"]:
-                dialogs.InfoDialog(
-                    self,
-                    "Error",
-                    "Esta cuenta no tiene frase de recuperación configurada. Contacta con administración.",
-                    "error",
-                )
-                return
 
             self.user_label.pack_forget()
             self.user_entry.pack_forget()
@@ -112,15 +104,15 @@ class RecoverFrame(tk.Frame):
             return
 
         try:
-            validate_password_strength(new_pass)
-            validate_recovery_phrase(recovery_phrase)
-            if not verify_password(recovery_phrase, self.new_user["recovery_phrase_hash"]):
-                dialogs.InfoDialog(self, "Error", "Usuario o credenciales de recuperación incorrectos", "error")
+            result = self._recover_password_use_case.execute(
+                self.new_user["id"],
+                recovery_phrase,
+                new_pass,
+                conf_pass,
+            )
+            if not result.ok:
+                dialogs.InfoDialog(self, "Error", result.error or "No se pudo actualizar la contraseña", "error")
                 return
-            dbcon.command("update","users", {
-                "id": self.new_user["id"],
-                "password_hash": hash_password(new_pass),
-            })
 
             dialogs.InfoDialog(self, "Éxito", "Contraseña actualizada correctamente", "info")
             self.switch_frame("login")

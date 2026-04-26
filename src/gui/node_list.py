@@ -2,15 +2,16 @@ from sqlite3 import DatabaseError
 from tkinter import ttk
 from src.gui import dialogs
 import uuid
-from src.models.node import Node
-import src.db.dbcon as dbcon
 import src.utils.icons.image_finder as image_finder
 from src.gui.base_list import SEC_BTN_STYLE, BaseListFrame
 from PIL import ImageTk, Image
 from TkToolTip import ToolTip
+from src.application.use_cases.manage_nodes import ManageNodesUseCase
+from src.infrastructure.repositories.sqlite_node_repository import SQLiteNodeRepository
 
 class NodeListFrame(BaseListFrame):
     def __init__(self, parent, switch_frame, usuario):
+            self._manage_nodes_use_case = ManageNodesUseCase(SQLiteNodeRepository())
             super().__init__(parent, switch_frame, usuario, columns={"id": 330, "valid": 55, "local_dataset_path": 600})
 
     def _insert_extra_buttons(self):
@@ -30,19 +31,19 @@ class NodeListFrame(BaseListFrame):
     
     def _add_item(self):
         try:
-            node_data = dbcon.command("insert", "nodes", {"valid": 0, "project_id": "", "local_dataset_path": ""})
-            
-            node = Node(node_data[0], node_data[1], node_data[2])
-            
-            dbcon.command("update", "nodes", {"id":node.id, "local_dataset_path": node.local_dataset_path})
+            result = self._manage_nodes_use_case.create()
+            if not result.ok:
+                dialogs.InfoDialog(self, "Error", result.error or "No se pudo crear el nodo", "error")
+                return
+            node_data = result.data
         except (ValueError, DatabaseError) as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return
         
         self.tree.insert("", 0, values=(
-            str(uuid.UUID(bytes=node.id)),
-            node.valid,
-            self._parse_path(node.local_dataset_path)
+            str(uuid.UUID(bytes=node_data["id"])),
+            node_data["valid"],
+            self._parse_path(node_data["local_dataset_path"])
         ), image=self.node_image)
         self.tree.update_idletasks()
         dialogs.InfoDialog(self, "Éxito", "Nodo agregado con éxito.", "info")  
@@ -74,7 +75,9 @@ class NodeListFrame(BaseListFrame):
                     continue
             
                 try:
-                    dbcon.command("delete", "nodes", {"id": node_id})
+                    result = self._manage_nodes_use_case.delete(node_id)
+                    if not result.ok:
+                        dialogs.InfoDialog(self, "Error", result.error or "No se pudo eliminar el nodo", "error")
                 except (ValueError, DatabaseError) as e:
                     dialogs.InfoDialog(self, "Error", str(e), "error")
                 
@@ -84,7 +87,11 @@ class NodeListFrame(BaseListFrame):
             
     def _initialize_tree(self):
         try:
-            nodes = dbcon.command("select", "nodes", {"id": "*"})
+            result = self._manage_nodes_use_case.list_all()
+            if not result.ok:
+                dialogs.InfoDialog(self, "Error", result.error or "No se pudieron cargar nodos", "error")
+                return
+            nodes = result.data
         except (ValueError, DatabaseError) as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
 

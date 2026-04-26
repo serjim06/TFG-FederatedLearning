@@ -1,6 +1,6 @@
 """
-Entrenamiento federado con Flower y simulación Ray: los clientes de cada ronda se
-ejecutan en paralelo vía el motor virtual de Flower.
+Federated training with Flower and Ray simulation: clients from each round
+run in parallel through Flower's virtual engine.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from flwr.common.constant import PARTITION_ID_KEY
 from flwr.server.server_config import ServerConfig
 from flwr.simulation import start_simulation
 from sklearn.metrics import confusion_matrix as sk_confusion_matrix
+from sklearn.metrics import r2_score
 
 from src.federated.strategy import (
     ProgressCallback,
@@ -36,7 +37,7 @@ def _persist_global_weights_for_train_id(
     global_sd: dict[str, torch.Tensor],
     train_id: str,
 ) -> None:
-    """Guarda el ``state_dict`` global como ``{train_id}.pth`` junto al ``.py`` del modelo."""
+    """Store the global ``state_dict`` as ``{train_id}.pth`` next to the model ``.py`` file."""
     if not global_sd or not (train_id or "").strip():
         return
     mp = (project_row.get("model_path") or "").strip()
@@ -47,10 +48,10 @@ def _persist_global_weights_for_train_id(
 
 def _flower_client_resources() -> tuple[dict[str, float], Optional[dict[str, Any]]]:
     """
-    Recursos por cliente Flower y configuración opcional de Ray.
+    Flower resources per client and optional Ray configuration.
 
-    Si hay CUDA disponible, cada cliente reserva 1 GPU para garantizar
-    que el entrenamiento local se ejecute en GPU.
+    If CUDA is available, each client reserves 1 GPU to ensure
+    local training runs on GPU.
     """
     has_cuda = torch.cuda.is_available() and torch.cuda.device_count() > 0
     if not has_cuda:
@@ -61,8 +62,8 @@ def _flower_client_resources() -> tuple[dict[str, float], Optional[dict[str, Any
 
 def _loader_seed(server_round: int, partition_index: int) -> int:
     """
-    Misma semilla en fit, evaluate (Flower) y post-proceso para que el split
-    train/val de cada cliente coincida con el usado al entrenar esa ronda.
+    Same seed for fit, evaluate (Flower), and post-processing so each client's
+    train/val split matches the one used while training that round.
     """
     return int(server_round) * 1000 + int(partition_index)
 
@@ -75,13 +76,13 @@ def _print_client_dataset(
     server_round: int,
 ) -> None:
     """
-    Provisional: traza qué CSV usa cada cliente simulado.
+    Temporary: log which CSV each simulated client uses.
 
-    El nombre ``dataset_0.csv`` es la ronda de datos del *proyecto* (``training_round``);
-    cada **nodo** tiene su propia carpeta ``database/datasets/node_<uuid>/``.
+    The name ``dataset_0.csv`` is the *project* data round (``training_round``);
+    each **node** has its own folder ``database/datasets/node_<uuid>/``.
 
-    Ray puede deduplicar líneas parecidas en el log; para ver cada línea:
-    ``set RAY_DEDUP_LOGS=0`` (Windows) antes de ejecutar.
+    Ray can deduplicate similar log lines; to see every line:
+    ``set RAY_DEDUP_LOGS=0`` (Windows) before running.
     """
     ns = str(uuid.UUID(bytes=nid))
     ap = Path(path).resolve()
@@ -120,7 +121,7 @@ def _ndarrays_to_json(arrays: list[np.ndarray]) -> str:
 
 
 class _FederatedNumPyClient(NumPyClient):
-    """Cliente Flower (NumPy) ligado a la partición `partition_index` del proyecto."""
+    """Flower (NumPy) client bound to the project's `partition_index` partition."""
 
     def __init__(
         self,
@@ -329,12 +330,12 @@ def _collect_round_client_stats(
     round_seed: int,
     *,
     full_detail: bool = True,
-) -> tuple[list[dict[str, Any]], list[float], list[float], list[float]]:
+) -> tuple[list[dict[str, Any]], list[float], list[float], list[float], list[float]]:
     """
-    Evalúa el modelo global de la ronda en cada cliente (mismo split val que en ``fit``).
+    Evaluate the round global model on each client (same val split as in ``fit``).
 
-    Si ``full_detail`` es False, solo se guardan pérdida/accuracy agregada por cliente
-    (sin matrices ni vectores ``y_*``) para reducir tiempo y tamaño del JSON.
+    If ``full_detail`` is False, only per-client aggregated loss/accuracy is stored
+    (without matrices or ``y_*`` vectors) to reduce runtime and JSON size.
     """
     gnet = model_wrapper.load_model(model_path)
     gnet.load_state_dict(
@@ -346,6 +347,7 @@ def _collect_round_client_stats(
     val_losses: list[float] = []
     acc_weights: list[float] = []
     client_accs: list[float] = []
+    client_r2s: list[float] = []
 
     for partition_index, nid in enumerate(node_ids_bytes):
         ns = str(uuid.UUID(bytes=nid))
@@ -368,6 +370,20 @@ def _collect_round_client_stats(
         if task == "classification":
             client_accs.append(float(ev.get("accuracy", 0.0)))
 
+        if task == "regression":
+            yt, yp = nm._gather_predictions(gnet, val_loader, device, task, metrics)
+            round_r2 = float(r2_score(yt, yp)) if len(yt) > 0 else float("nan")
+            client_r2s.append(round_r2)
+            client_stats.append(
+                {
+                    "client_id": ns,
+                    "val_loss": float(ev["loss"]),
+                    "n_val_samples": int(n_samples),
+                    "r2": round_r2,
+                }
+            )
+            continue
+
         if not full_detail:
             client_stats.append(
                 {
@@ -384,16 +400,8 @@ def _collect_round_client_stats(
             labels = list(range(n_cls))
             cm = sk_confusion_matrix(yt, yp, labels=labels)
             client_stats.append({"client_id": ns, "confusion_matrix": cm.tolist()})
-        else:
-            client_stats.append(
-                {
-                    "client_id": ns,
-                    "y_true": np.asarray(yt).astype(float).ravel().tolist(),
-                    "y_pred": np.asarray(yp).astype(float).ravel().tolist(),
-                }
-            )
 
-    return client_stats, val_losses, acc_weights, client_accs
+    return client_stats, val_losses, acc_weights, client_accs, client_r2s
 
 
 def run_federated_training(
@@ -521,8 +529,9 @@ def run_federated_training(
         round_time = round_times[r] if r < len(round_times) else 0.0
         snap = snapshots[r]
         is_last = r == num_federated_rounds - 1
+        collect_full_detail = is_last or task == "regression"
 
-        client_stats, val_losses, acc_weights, client_accs = _collect_round_client_stats(
+        client_stats, val_losses, acc_weights, client_accs, client_r2s = _collect_round_client_stats(
             snap,
             param_keys,
             project_row,
@@ -537,7 +546,7 @@ def run_federated_training(
             model_path,
             device,
             round_seed=r + 1,
-            full_detail=is_last,
+            full_detail=collect_full_detail,
         )
 
         global_loss = float(np.mean(val_losses)) if val_losses else 0.0
@@ -547,6 +556,12 @@ def run_federated_training(
             global_accuracy = float(np.dot(w, np.array(client_accs)))
         else:
             global_accuracy = 0.0
+        if task == "regression" and acc_weights and client_r2s:
+            w = np.array(acc_weights, dtype=float)
+            w = w / w.sum() if w.sum() > 0 else w
+            global_r2 = float(np.dot(w, np.array(client_r2s, dtype=float)))
+        else:
+            global_r2 = float("nan")
 
         row: dict[str, Any] = {
             "round": r + 1,
@@ -557,6 +572,8 @@ def run_federated_training(
         }
         if task == "classification":
             row["global_accuracy"] = global_accuracy
+        else:
+            row["global_r2"] = global_r2
         results_per_round.append(row)
 
     final_ndarrays = snapshots[-1]

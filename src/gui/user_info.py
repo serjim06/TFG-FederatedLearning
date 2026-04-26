@@ -1,10 +1,11 @@
 import json
-from sqlite3 import DatabaseError
 import tkinter as tk
 from tkinter import ttk
 import uuid
 
-import src.db.dbcon as dbcon
+from src.application.use_cases.delete_user import DeleteUserUseCase
+from src.infrastructure.repositories.sqlite_project_repository import SQLiteProjectRepository
+from src.infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from src.utils import utils
 from src.gui import dialogs
 
@@ -27,8 +28,11 @@ class UserInfoDialog(tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         
         self.user_data = user_data
-        print(user_data["id"])
         self.parent = parent
+        self._delete_user_use_case = DeleteUserUseCase(
+            SQLiteUserRepository(),
+            SQLiteProjectRepository(),
+        )
         
         self.top_frame = tk.Frame(self)
         self.top_frame.pack(fill="both", expand=True)
@@ -55,7 +59,8 @@ class UserInfoDialog(tk.Toplevel):
         self.role_label = tk.Label(self.frame, text=f"Role: {user_data['role']}", font=("Arial", 10), bg="#eef4fb")
         self.role_label.pack(anchor="w", pady=5)
         
-        self.user_projects = dbcon.command("select", "projects", {"uid": user_data["id"]})
+        project_repo = SQLiteProjectRepository()
+        self.user_projects = project_repo.list_by_user(user_data["id"])
         
         self.projects_label = tk.Label(self.frame, text="Projects:", font=("Arial", 10, "bold"), bg="#eef4fb")
         self.projects_label.pack(anchor="w", pady=10)
@@ -82,9 +87,11 @@ class UserInfoDialog(tk.Toplevel):
     def delete_user(self):
         if dialogs.OptionDialog.ask(self, "Confirmar Eliminación", "¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer. Se eliminarán todos los proyectos asociados a este usuario."):
             try:
-                dbcon.command("delete", "projects", {"uid": self.user_data["id"]})
-                dbcon.command("delete", "users", {"id": self.user_data["id"]})
-            except (ValueError, DatabaseError) as e:
+                result = self._delete_user_use_case.execute(self.user_data["id"])
+                if not result.ok:
+                    dialogs.InfoDialog(self, "Error", result.error or "No se pudo eliminar el usuario.", "error")
+                    return
+            except ValueError as e:
                 dialogs.InfoDialog(self, "Error", str(e), "error")
                 return
             

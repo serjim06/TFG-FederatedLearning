@@ -1,4 +1,4 @@
-"""MLP tabular; las constantes deben coincidir con el CSV y el proyecto."""
+"""Tabular MLP; constants must match the CSV and the project."""
 
 from __future__ import annotations
 

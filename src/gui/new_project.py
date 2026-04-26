@@ -12,13 +12,15 @@ from PIL import Image, ImageTk
 from TkToolTip import ToolTip
 
 from src.utils.icons import image_finder
-from src.db import dbcon
-from src.projects.projects import Project
 from src.projects.projects import cargar_modulo, verificar_modulo
 from src.gui.add_dataset import AddDatasetDialog
 from src.gui.confirm_results import ConfirmResultsFrame
 from src.utils import utils
 from src.gui import dialogs
+from src.application.use_cases.create_project import CreateProjectUseCase
+from src.application.use_cases.update_project import UpdateProjectUseCase
+from src.infrastructure.repositories.sqlite_node_repository import SQLiteNodeRepository
+from src.infrastructure.repositories.sqlite_project_repository import SQLiteProjectRepository
 
 _LOSS_OPTIONS_CLASSIFICATION = (
     "categorical_crossentropy",
@@ -93,6 +95,7 @@ class NewProject(ttk.Frame):
         self.configure(style="TFrame")
         
         self.user_id = user_id
+        self._node_repository = SQLiteNodeRepository()
 
         parent.columnconfigure(0, weight=1)
         parent.rowconfigure(grid_row, weight=1)
@@ -378,7 +381,7 @@ class NewProject(ttk.Frame):
         self.nodes_frame.grid(row=row, column=0, sticky="ews", pady=(5, 0))
 
         try:
-            nodes = dbcon.command("select", "nodes", {"id": "*", "valid": 0})
+            nodes = self._node_repository.list_available()
         except (ValueError, DatabaseError) as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return
@@ -648,6 +651,10 @@ class NewProjectDialog(tk.Toplevel):
         
         self.user_id = user_id
         self.parent = parent
+        self._create_project_use_case = CreateProjectUseCase(
+            SQLiteProjectRepository(),
+            SQLiteNodeRepository(),
+        )
 
         self.title("Nuevo Proyecto")
         self.geometry("700x720")
@@ -679,36 +686,11 @@ class NewProjectDialog(tk.Toplevel):
         except ValueError as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return
-        
-        params_str = json.dumps(data["parameters"])
-        nodes_str = json.dumps(data["initial_nodes"])
-        input_features_str = json.dumps(data["input_features"])
-        output_features_str = json.dumps(data["output_features"])
-        
-        try:
-            dbcon.command("insert", "projects", {
-                "uid": self.user_id,
-                "name": data["name"],
-                "description": data["description"],
-                "parameters": params_str,
-                "aggregation_strategy": data["aggregation_strategy"],
-                "metrics": data["metrics"],
-                "nodes": nodes_str,
-                "model_path": data["model_path"],
-                "input_features": input_features_str,
-                "output_features": output_features_str,
-                "unconfirmed_results": json.dumps([]),
-                "type": data["task_type"],
 
-            })
-            project = dbcon.command("select", "projects", {"name": data["name"], "uid": self.user_id})
-            
-            nodes = json.loads(project[0]["nodes"])
-            nodes_bytes = [uuid.UUID(node_id).bytes for node_id in nodes]
-            
-            project = Project(project[0]["id"], project[0]["uid"], project[0]["name"], project[0]["description"],
-                              json.loads(project[0]["parameters"]), project[0]["aggregation_strategy"],
-                              initial_nodes=nodes_bytes, metrics=project[0]["metrics"])
+        try:
+            result = self._create_project_use_case.execute(self.user_id, data)
+            if not result.ok:
+                raise ValueError(result.error or "No se pudo crear el proyecto.")
         except (ValueError, DatabaseError) as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return
@@ -724,6 +706,11 @@ class SeeProjectDialog(tk.Toplevel):
         
         self.project_id = project_id
         self.parent = parent
+        self._update_project_use_case = UpdateProjectUseCase(
+            SQLiteProjectRepository(),
+            SQLiteNodeRepository(),
+        )
+        self._project_repository = SQLiteProjectRepository()
         
         self.geometry("700x720")
         self.resizable(False, False)
@@ -744,7 +731,7 @@ class SeeProjectDialog(tk.Toplevel):
             widget.destroy()
         for r in range(20):
             self.rowconfigure(r, weight=0)
-        self.project = dbcon.command("select", "projects", {"id": project_id})[0]
+        self.project = self._project_repository.get_by_id(project_id)
 
         self.title(f"Modificar Proyecto: {self.project['name']}")
 
@@ -806,44 +793,21 @@ class SeeProjectDialog(tk.Toplevel):
         
         
     def _on_mod(self):
-        old_nodes_bytes = [uuid.UUID(node_id).bytes for node_id in json.loads(self.project["nodes"])]
-            
         try:
             data = self.form.get_data()
         except ValueError as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return
-            
-        params_str = json.dumps(data["parameters"])
-        nodes_str = json.dumps(data["initial_nodes"])
-            
-        try:
-            dbcon.command("update", "projects", {
-                "id": self.project_id,
-                "uid": self.project["uid"],
-                "name": data["name"],
-                "description": data["description"],
-                "parameters": params_str,
-                "aggregation_strategy": data["aggregation_strategy"],
-                "metrics": data["metrics"],
-                "nodes": nodes_str
-            })
-            project = dbcon.command("select", "projects", {"name": data["name"], "uid": self.project["uid"]})
-            nodes = json.loads(project[0]["nodes"])
-            print("Nodos del proyecto:", nodes)
-            nodes_bytes = [uuid.UUID(node_id).bytes for node_id in nodes]
-                
-            nodes_removed = set(old_nodes_bytes) - set(nodes_bytes)
-            
-            for node_id in nodes_removed:
-                self.parent._eliminate_dataset(node_id)
-                    
-                dbcon.command("update", "nodes", {"id": node_id, "valid": 0})
 
-            for nodes_id in nodes_bytes:
-                dbcon.command("update", "nodes", {"id": nodes_id, "valid": 1, "project_id": self.project_id})
-                
-                
+        try:
+            result = self._update_project_use_case.execute(
+                self.project_id,
+                self.project,
+                data,
+                on_node_removed=self.parent._eliminate_dataset,
+            )
+            if not result.ok:
+                raise ValueError(result.error or "No se pudo actualizar el proyecto.")
         except (ValueError, DatabaseError) as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return

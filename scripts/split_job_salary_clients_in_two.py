@@ -1,8 +1,8 @@
 """
-Parte ``job_salary_client_a.csv`` y ``job_salary_client_b.csv`` en dos mitades cada uno
-(cuatro CSV en total), con la misma cabecera.
+Split ``job_salary_client_a.csv`` and ``job_salary_client_b.csv`` into two halves each
+(four CSV files in total), keeping the same header.
 
-Ejecución desde la raíz del repo:
+Run from the repository root:
 
     .venv\\Scripts\\python.exe scripts/split_job_salary_clients_in_two.py
 """

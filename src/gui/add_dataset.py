@@ -1,134 +1,12 @@
-import csv
 import json
-import re
-import shutil
 import tkinter as tk
-from pathlib import Path
 from tkinter import filedialog, ttk
 
 from src.gui import dialogs
 from src.gui.dialogs import BaseDialog
 from src.utils import utils
-
-
-DATASETS_ROOT = Path(__file__).resolve().parent.parent.parent / "database" / "datasets"
-
-
-def _node_dir_name(node_uuid: str) -> str:
-    return f"node_{node_uuid}"
-
-
-def _create_new_dataset(
-    dataset_dir: Path, cur_round: int, in_features: list, out_features: list
-) -> Path:
-    path = dataset_dir / f"dataset_{cur_round}.csv"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(",".join(list(in_features) + list(out_features)) + "\n")
-    return path
-
-
-def _get_last_dataset_path(
-    node_uuid: str, cur_round: int, in_features: list, out_features: list
-) -> Path:
-    node_dir = DATASETS_ROOT / _node_dir_name(node_uuid)
-    pattern = re.compile(r"dataset_(\d+)\.csv")
-    found_files = []
-
-    if node_dir.exists():
-        for f in node_dir.glob("dataset_*.csv"):
-            coincidence = pattern.search(f.name)
-            if coincidence:
-                round_number = int(coincidence.group(1))
-                found_files.append((round_number, f))
-
-    if found_files:
-        last_dataset, file_path = max(found_files, key=lambda x: x[0])
-        if last_dataset != cur_round:
-            dest = node_dir / f"dataset_{cur_round}.csv"
-            shutil.copy2(file_path, dest)
-            file_path = dest
-    else:
-        file_path = _create_new_dataset(node_dir, cur_round, in_features, out_features)
-
-    return file_path
-
-
-def _labels_match_row(row: list, expected_labels: list) -> bool:
-    if len(row) != len(expected_labels):
-        return False
-    return all((a or "").strip() == (b or "").strip() for a, b in zip(row, expected_labels))
-
-
-def _same_labels_wrong_order(row: list, expected_labels: list) -> bool:
-    if len(row) != len(expected_labels):
-        return False
-    got = [(x or "").strip() for x in row]
-    exp = [(x or "").strip() for x in expected_labels]
-    return sorted(got) == sorted(exp) and got != exp
-
-
-def validate_csv_for_project(
-    src_path: Path, in_features: list, out_features: list
-) -> tuple[list[list[str]] | None, str | None]:
-    expected = list(in_features) + list(out_features)
-    n = len(expected)
-
-    try:
-        with open(src_path, encoding="utf-8", errors="replace", newline="") as f:
-            rows = list(csv.reader(f))
-    except OSError as e:
-        return None, f"No se pudo leer el archivo: {e}"
-
-    if not rows:
-        return None, "El archivo CSV está vacío."
-
-    for ri, row in enumerate(rows):
-        if not any((c or "").strip() for c in row):
-            return None, f"La fila {ri + 1} del archivo está vacía; elimínala o rellénala."
-
-    while rows and not any((c or "").strip() for c in rows[-1]):
-        rows.pop()
-
-    if not rows:
-        return None, "El archivo no contiene ninguna fila con datos."
-
-    if _labels_match_row(rows[0], expected):
-        data_rows = rows[1:]
-        if not data_rows:
-            return None, "El archivo solo contiene la cabecera; no hay filas de datos."
-        header_note = True
-    elif _same_labels_wrong_order(rows[0], expected):
-        return None, (
-            "La cabecera contiene las mismas etiquetas que el proyecto pero en distinto orden. "
-            f"Orden requerido: {', '.join(expected)}"
-        )
-    else:
-        data_rows = rows
-        header_note = False
-
-    for i, row in enumerate(data_rows, start=1):
-        if len(row) != n:
-            esperado = ", ".join(expected)
-            fila_ctx = f" (fila de datos {i}" + (" tras la cabecera)" if header_note else ")")
-            return None, (
-                f"Número de columnas incorrecto{fila_ctx}: se esperaban {n} "
-                f"({esperado}), hay {len(row)}."
-            )
-        for j, cell in enumerate(row):
-            if not (cell or "").strip():
-                col = expected[j]
-                fila_ctx = f"Fila de datos {i}" + (" (tras la cabecera)" if header_note else "")
-                return None, f"{fila_ctx}: la columna «{col}» está vacía."
-
-    return data_rows, None
-
-
-def _append_data_rows(dest_path: Path, data_rows: list[list[str]]) -> None:
-    with open(dest_path, "a", encoding="utf-8", newline="") as out:
-        for row in data_rows:
-            out.write(",".join(str(c) for c in row) + "\n")
-
+from src.application.services.dataset_service import DatasetService
+from src.application.use_cases.add_dataset_to_node import AddDatasetToNodeUseCase
 
 class AddDatasetDialog(BaseDialog):
     def __init__(self, parent, nodes: list, project: dict):
@@ -140,6 +18,7 @@ class AddDatasetDialog(BaseDialog):
         self._in_features = json.loads(project["input_features"])
         self._out_features = json.loads(project["output_features"])
         self._cur_round = int(project.get("training_round") or 0)
+        self._add_dataset_use_case = AddDatasetToNodeUseCase(DatasetService())
 
         self._csv_path = tk.StringVar(value="")
 
@@ -256,34 +135,15 @@ class AddDatasetDialog(BaseDialog):
                 dialogs.InfoDialog(self, "Información", "Selecciona un nodo.", "warning")
                 return
 
-            src = self._csv_path.get().strip()
-            if not src:
-                dialogs.InfoDialog(self, "Información", "Selecciona un archivo CSV.", "warning")
-                return
-
-            if not src.lower().endswith(".csv"):
-                dialogs.InfoDialog(self, "Error", "El archivo debe tener extensión .csv.", "error")
-                return
-
-            src_path = Path(src)
-            if not src_path.is_file():
-                dialogs.InfoDialog(self, "Error", "No se encontró el archivo indicado.", "error")
-                return
-
-            data_rows, err = validate_csv_for_project(
-                src_path, self._in_features, self._out_features
+            result = self._add_dataset_use_case.execute(
+                node,
+                self._csv_path.get(),
+                self._in_features,
+                self._out_features,
+                self._cur_round,
             )
-            if err:
-                dialogs.InfoDialog(self, "Dataset no válido", err, "error")
-                return
-
-            try:
-                dest_path = _get_last_dataset_path(
-                    node, self._cur_round, self._in_features, self._out_features
-                )
-                _append_data_rows(dest_path, data_rows)
-            except OSError as e:
-                dialogs.InfoDialog(self, "Error", f"No se pudo escribir el dataset: {e}", "error")
+            if not result.ok:
+                dialogs.InfoDialog(self, "Error", result.error or "No se pudo añadir el dataset", "error")
                 return
 
             dialogs.InfoDialog(

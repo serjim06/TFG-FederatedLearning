@@ -1,11 +1,9 @@
 import tkinter as tk
-from sqlite3 import DatabaseError
 from tkinter import ttk
+from src.application.use_cases.register_user import RegisterUserUseCase
+from src.infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 import src.utils.utils as utils
-from src.db import dbcon
 from src.gui import dialogs
-from src.security.auth_policy import validate_password_strength, validate_recovery_phrase
-from src.security.passwords import hash_password
 
 
 class RegisterFrame(tk.Frame):
@@ -13,6 +11,7 @@ class RegisterFrame(tk.Frame):
         super().__init__(parent)
         self.switch_frame = switch_frame
         self.configure(bg="#eef4fb")
+        self._register_user_use_case = RegisterUserUseCase(SQLiteUserRepository())
 
 
         style = utils.get_style()
@@ -67,21 +66,18 @@ class RegisterFrame(tk.Frame):
             return
 
         try:
-            validate_password_strength(password)
-            validate_recovery_phrase(recovery)
-            existing = dbcon.command("select", "users", {"username": username})
-            if existing:
-                dialogs.InfoDialog(self, "Error", "El usuario ya existe", "error")
+            result = self._register_user_use_case.execute(
+                username,
+                password,
+                confirm,
+                recovery,
+                recovery_confirm,
+            )
+            if not result.ok:
+                dialogs.InfoDialog(self, "Error", result.error or "No se pudo registrar el usuario", "error")
                 return
-            dbcon.command("insert","users", {
-                "username": username,
-                "password_hash": hash_password(password),
-                "recovery_phrase_hash": hash_password(recovery),
-                "role": "user"
-            })
-
             dialogs.InfoDialog(self, "Éxito","Usuario registrado correctamente", "info")
             self.switch_frame("login")
-        except (ValueError, DatabaseError) as e:
+        except ValueError as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.gui.project_metrics import (
+from src.application.services.project_metrics_calculations import (
     get_datasets_changes,
     get_metrics_per_round,
     get_regression_metrics_bundle,

@@ -1,15 +1,14 @@
 import tkinter as tk
 import time
-from sqlite3 import DatabaseError
 from tkinter import ttk
-from src.db import dbcon
+from src.application.use_cases.authenticate_user import AuthenticateUserUseCase
+from src.infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from src.utils.user import User
 import src.utils.utils as utils
 from src.gui import dialogs
 import src.utils.icons.image_finder as image_finder
 from PIL import ImageTk, Image
 from src.security.auth_policy import MAX_LOGIN_ATTEMPTS, LOCK_SECONDS, get_lock_message
-from src.security.passwords import verify_password
 
 class LoginPanel(tk.Frame):
     def __init__(self, parent, switch_frame):
@@ -18,6 +17,7 @@ class LoginPanel(tk.Frame):
         self.switch_frame = switch_frame
         self.failed_attempts = 0
         self.locked_until = 0.0
+        self._authenticate_user_use_case = AuthenticateUserUseCase(SQLiteUserRepository())
 
         style = utils.get_style()
 
@@ -86,18 +86,12 @@ class LoginPanel(tk.Frame):
             return
 
         try:
-            obj_user = dbcon.command("select","users", {"username": user})
-            if not obj_user:
+            result = self._authenticate_user_use_case.execute(user, passwd)
+            if not result.ok:
                 self._handle_failed_attempt()
-                dialogs.InfoDialog(self, "Error", "Usuario o credenciales de acceso incorrectos", "error")
+                dialogs.InfoDialog(self, "Error", result.error or "Usuario o contraseña incorrectos", "error")
                 return
-            row = obj_user[0]
-            stored_hash = row.get("password_hash")
-            is_valid = verify_password(passwd, stored_hash)
-            if not is_valid:
-                self._handle_failed_attempt()
-                dialogs.InfoDialog(self, "Error", "Usuario o contraseña incorrectos", "error")
-                return
+            row = result.data
             self.failed_attempts = 0
             self.locked_until = 0.0
             new_user = User(
@@ -109,7 +103,7 @@ class LoginPanel(tk.Frame):
             )
             self.switch_frame("dashboard", new_user)
 
-        except (ValueError, DatabaseError) as e:
+        except ValueError as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return
 

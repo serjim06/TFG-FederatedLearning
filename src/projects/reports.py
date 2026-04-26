@@ -349,6 +349,16 @@ def generate_regression_report(story, train_id, strategy, total_clients, results
         stats.append(
             ListItem(Paragraph(f"Pérdida global: {result['global_loss']}", styles["BodyText"]))
         )
+        round_r2 = result.get("global_r2")
+        if round_r2 is not None:
+            stats.append(
+                ListItem(
+                    Paragraph(
+                        f"Puntuación R<sup>2</sup>: {round_r2}",
+                        styles["BodyText"],
+                    )
+                )
+            )
         cs = result.get("client_stats") or []
         has_y = bool(cs and isinstance(cs[0], dict) and "y_true" in cs[0])
         if has_y:
@@ -365,15 +375,16 @@ def generate_regression_report(story, train_id, strategy, total_clients, results
                     )
                 )
             )
-            stats.append(
-                ListItem(
-                    Paragraph(
-                        f"Puntuación R<sup>2</sup>: {r2_score(total_y_true, total_y_pred)}",
-                        styles["BodyText"],
+            if round_r2 is None:
+                stats.append(
+                    ListItem(
+                        Paragraph(
+                            f"Puntuación R<sup>2</sup>: {r2_score(total_y_true, total_y_pred)}",
+                            styles["BodyText"],
+                        )
                     )
                 )
-            )
-        else:
+        elif round_r2 is None:
             stats.append(
                 ListItem(
                     Paragraph(

@@ -6,7 +6,6 @@ from tkinter import ttk, filedialog
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
-import src.db.dbcon as dbcon
 import src.utils.icons.image_finder as image_finder
 from PIL import ImageTk, Image
 from TkToolTip import ToolTip
@@ -14,22 +13,26 @@ from src.gui.new_project import NewProjectDialog, SeeProjectDialog
 from src.gui.base_list import SEC_BTN_STYLE, BaseListFrame
 from src.gui import dialogs
 from src.gui.dialogs import FederatedRoundsDialog, PredictDialog
-from src.models.node import Node, predict
 from src.gui.project_metrics import (
     ProjectMetricsDialog,
-    get_metrics_per_round,
-    get_regression_metrics_bundle,
-    get_time_per_round,
-    get_datasets_changes,
 )
-from src.projects.reports import generate_report
-from src.federated import run_federated_training
-from src.models.node import merge_project_training_results
 from collections import Counter
 from math import sqrt
+from src.application.services.federated_training_service import FederatedTrainingService
+from src.application.services.metrics_service import MetricsService
+from src.application.services.prediction_service import PredictionService
+from src.application.services.report_service import ReportService
+from src.application.use_cases.generate_project_report import GenerateProjectReportUseCase
+from src.application.use_cases.get_project_metrics import GetProjectMetricsUseCase
+from src.application.use_cases.run_federated_training import RunFederatedTrainingUseCase
+from src.application.use_cases.run_project_prediction import RunProjectPredictionUseCase
+from src.infrastructure.repositories.sqlite_node_repository import SQLiteNodeRepository
+from src.infrastructure.repositories.sqlite_project_repository import SQLiteProjectRepository
 
 class ProjectListFrame(BaseListFrame):
     def __init__(self, parent, switch_frame, usuario):
+            self._project_repository = SQLiteProjectRepository()
+            self._node_repository = SQLiteNodeRepository()
             super().__init__(parent, switch_frame, usuario, columns={"id": 330, "name": 55, "description": 300, "pending": 15})
             
             self.winfo_toplevel().bind("<Configure>", self._reposition_suggestions)
@@ -52,6 +55,23 @@ class ProjectListFrame(BaseListFrame):
 
             self._federated_running = False
             self._fed_queue: queue.Queue = queue.Queue()
+            self._federated_use_case = RunFederatedTrainingUseCase(
+                self._project_repository,
+                FederatedTrainingService(),
+            )
+            self._metrics_use_case = GetProjectMetricsUseCase(
+                self._project_repository,
+                MetricsService(),
+            )
+            self._report_use_case = GenerateProjectReportUseCase(
+                self._project_repository,
+                ReportService(),
+            )
+            self._prediction_use_case = RunProjectPredictionUseCase(
+                self._project_repository,
+                self._node_repository,
+                PredictionService(),
+            )
 
     def destroy(self):
         try:
@@ -137,23 +157,16 @@ class ProjectListFrame(BaseListFrame):
                     _, cur, total, msg, eta = item
                     self._set_federated_status(cur, total, msg, eta)
                 elif kind == "success":
-                    _, merged, total_sec, prev, project_id_b, fed_rounds = item
+                    _, payload = item
                     self._federated_running = False
-                    upd: dict = {"id": project_id_b, "training_results": merged}
-                    if not prev.get("type"):
-                        upd["type"] = (
-                            "regression"
-                            if (prev.get("metrics") or "") == "mean_squared_error"
-                            else "classification"
-                        )
-                    cur_data_round = int(prev.get("training_round") or 0)
-                    upd["training_round"] = cur_data_round + int(fed_rounds) + 1
-                    dbcon.command("update", "projects", upd)
                     self._hide_loading()
                     dialogs.InfoDialog(
                         self,
                         "Entrenamiento federado",
-                        f"Completado en {total_sec:.1f} s. Resultados guardados en el proyecto.",
+                        (
+                            f"Completado en {payload['total_time_seconds']:.1f} s. "
+                            "Resultados guardados en el proyecto."
+                        ),
                         "info",
                     )
                     return
@@ -188,16 +201,15 @@ class ProjectListFrame(BaseListFrame):
         project_id = uuid.UUID(values[0]).bytes
 
         try:
-            project_data = dbcon.command("select", "projects", {"id": project_id})
+            row = self._project_repository.get_by_id(project_id)
         except (ValueError, DatabaseError) as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return
 
-        if not project_data:
+        if not row:
             dialogs.InfoDialog(self, "Error", "No se encontró el proyecto.", "error")
             return
 
-        row = project_data[0]
         nodes = json.loads(row["nodes"]) if row.get("nodes") else []
         if not nodes:
             dialogs.InfoDialog(
@@ -281,48 +293,20 @@ class ProjectListFrame(BaseListFrame):
     def _start_prediction_job(
         self, project_id: bytes, node_id: str, values: list[float]
     ) -> None:
-        try:
-            project_data = dbcon.command("select", "projects", {"id": project_id})
-        except (ValueError, DatabaseError) as e:
-            dialogs.InfoDialog(self, "Error", str(e), "error")
-            return
-
-        if not project_data:
-            dialogs.InfoDialog(self, "Error", "No se encontró el proyecto.", "error")
-            return
-        row = project_data[0]
-
-        try:
-            node_rows = dbcon.command("select", "nodes", {"id": uuid.UUID(node_id).bytes})
-        except (ValueError, DatabaseError) as e:
-            dialogs.InfoDialog(self, "Error", str(e), "error")
-            return
-
-        if not node_rows:
-            dialogs.InfoDialog(self, "Error", "No se encontró el nodo en la base de datos.", "error")
-            return
-        nd = node_rows[0]
-        node = Node(nd["id"], nd["valid"], nd["project_id"])
-
         self._show_loading("Realizando predicción…")
 
-        def _compute(node_obj: Node, vals: list[float], project_row: dict[str, Any]) -> Any:
-            return predict(node_obj, vals, project=dict(project_row))
+        def _compute(pid: bytes, nid: str, vals: list[float]) -> Any:
+            result = self._prediction_use_case.execute(pid, nid, vals)
+            if not result.ok:
+                raise ValueError(result.error or "No se pudo completar la predicción.")
+            return result.data
 
-        future = self._executor.submit(_compute, node, values, row)
+        future = self._executor.submit(_compute, project_id, node_id, values)
 
         def _done_callback(f):
             def _finish_on_ui_thread():
                 try:
-                    out = f.result()
-                    pending_raw = row.get("unconfirmed_results") or "[]"
-                    pending = json.loads(pending_raw) if isinstance(pending_raw, str) else list(pending_raw)
-                    pending.append(self._build_prediction_pending_entry(row, node_id, values, out))
-                    dbcon.command(
-                        "update",
-                        "projects",
-                        {"id": project_id, "unconfirmed_results": json.dumps(pending, ensure_ascii=False)},
-                    )
+                    payload = f.result()
                     self._hide_loading()
                     self._initialize_tree()
                     dialogs.InfoDialog(
@@ -330,7 +314,7 @@ class ProjectListFrame(BaseListFrame):
                         "Predicción completada",
                         (
                             "Predicción añadida a 'Confirmar Resultados Pendientes' "
-                            f"del proyecto '{row['name']}'."
+                            f"del proyecto '{payload['project_name']}'."
                         ),
                         "info",
                     )
@@ -370,31 +354,11 @@ class ProjectListFrame(BaseListFrame):
     def _start_federated_job(self, project_id: bytes, num_rounds: int) -> None:
         if self._federated_running:
             return
-        try:
-            project_data = dbcon.command("select", "projects", {"id": project_id})
-        except (ValueError, DatabaseError) as e:
-            dialogs.InfoDialog(self, "Error", str(e), "error")
-            return
-
-        if not project_data:
-            dialogs.InfoDialog(self, "Error", "No se encontró el proyecto.", "error")
-            return
-
-        row = project_data[0]
-        nodes = json.loads(row["nodes"]) if row.get("nodes") else []
-        if not nodes:
-            dialogs.InfoDialog(
-                self,
-                "Sin nodos",
-                "El proyecto no tiene nodos asignados. Añade nodos en la configuración del proyecto.",
-                "warning",
-            )
-            return
 
         self._federated_running = True
         self._show_loading("Preparando servidor federado…")
 
-        def _work(payload: list, rounds: int, pid: bytes) -> None:
+        def _work(pid: bytes, rounds: int) -> None:
             def on_progress(
                 cur: int,
                 total: int,
@@ -407,25 +371,14 @@ class ProjectListFrame(BaseListFrame):
                     pass
 
             try:
-                out = run_federated_training(payload[0], rounds, on_progress=on_progress)
-                merged = merge_project_training_results(
-                    payload[0].get("training_results"),
-                    out["training_results_entry"],
-                )
-                self._fed_queue.put(
-                    (
-                        "success",
-                        merged,
-                        out["total_time_seconds"],
-                        payload[0],
-                        pid,
-                        rounds,
-                    )
-                )
+                result = self._federated_use_case.execute(pid, rounds, on_progress=on_progress)
+                if not result.ok:
+                    raise ValueError(result.error or "Error ejecutando entrenamiento federado.")
+                self._fed_queue.put(("success", result.data))
             except Exception as e:
                 self._fed_queue.put(("error", e))
 
-        self._executor.submit(_work, project_data, num_rounds, project_id)
+        self._executor.submit(_work, project_id, num_rounds)
         self.after(0, self._poll_federated_queue)
 
     def _insert_extra_buttons(self):
@@ -663,7 +616,7 @@ class ProjectListFrame(BaseListFrame):
             project_id = uuid.UUID(values[0]).bytes
             
             try:
-                project_data = dbcon.command("select", "projects", {"id": project_id})
+                project_data = self._project_repository.get_by_id(project_id)
                 if project_data:
                     SeeProjectDialog(self, project_id)
             except (ValueError, DatabaseError) as e:
@@ -677,67 +630,43 @@ class ProjectListFrame(BaseListFrame):
             item_id = seleccionado[0]
             values = self.tree.item(item_id, "values")
             project_id = uuid.UUID(values[0]).bytes
-            try:
-                project_data = dbcon.command("select", "projects", {"id": project_id})
-                if project_data:
-                    self._show_loading("Calculando métricas…")
+            self._show_loading("Calculando métricas…")
 
-                    def _compute(payload):
-                        training_data = json.loads(payload[0]["training_results"])
-                        project_type = payload[0]["type"]
-                        metrics = get_metrics_per_round(training_data, project_type)
-                        if project_type == "regression":
-                            _, y_true_total, y_pred_total = get_regression_metrics_bundle(
-                                training_data
-                            )
-                        else:
-                            y_true_total, y_pred_total = [], []
-                        time_per_round = get_time_per_round(training_data)
-                        nodes = json.loads(payload[0]["nodes"])
-                        datasets_changes = get_datasets_changes(nodes)
-                        return (
-                            training_data,
-                            project_type,
-                            metrics,
-                            time_per_round,
-                            datasets_changes,
-                            y_true_total,
-                            y_pred_total,
+            def _compute(pid: bytes):
+                result = self._metrics_use_case.execute(pid)
+                if not result.ok:
+                    raise ValueError(result.error or "No se pudo calcular métricas.")
+                return result.data
+
+            future = self._executor.submit(_compute, project_id)
+
+            def _done_callback(f):
+                def _finish_on_ui_thread():
+                    try:
+                        payload = f.result()
+                        project_row = dict(payload["project_row"])
+                        project_row["time_per_round"] = payload["time_per_round"]
+                        project_row["datasets_changes"] = payload["datasets_changes"]
+                        project_row["metrics"] = payload["metrics"]
+                        project_row["y_true"] = payload["y_true_total"]
+                        project_row["y_pred"] = payload["y_pred_total"]
+                        self._hide_loading()
+                        ProjectMetricsDialog(
+                            self,
+                            payload["training_data"],
+                            project_row,
+                            title="Métricas del Proyecto",
                         )
+                    except Exception as e:
+                        self._hide_loading()
+                        dialogs.InfoDialog(self, "Error", str(e), "error")
 
-                    future = self._executor.submit(_compute, project_data)
+                try:
+                    self.after(0, _finish_on_ui_thread)
+                except Exception:
+                    pass
 
-                    def _done_callback(f):
-                        def _finish_on_ui_thread():
-                            try:
-                                (
-                                    training_data,
-                                    project_type,
-                                    metrics,
-                                    time_per_round,
-                                    datasets_changes,
-                                    y_true_total,
-                                    y_pred_total,
-                                ) = f.result()
-                                project_data[0]["time_per_round"] = time_per_round
-                                project_data[0]["datasets_changes"] = datasets_changes
-                                project_data[0]["metrics"] = metrics
-                                project_data[0]["y_true"] = y_true_total
-                                project_data[0]["y_pred"] = y_pred_total
-                                self._hide_loading()
-                                ProjectMetricsDialog(self, training_data, project_data[0], title="Métricas del Proyecto")
-                            except Exception as e:
-                                self._hide_loading()
-                                dialogs.InfoDialog(self, "Error", str(e), "error")
-
-                        try:
-                            self.after(0, _finish_on_ui_thread)
-                        except Exception:
-                            pass
-
-                    future.add_done_callback(_done_callback)
-            except (ValueError, DatabaseError) as e:
-                dialogs.InfoDialog(self, "Error", str(e), "error")
+            future.add_done_callback(_done_callback)
         else:
             dialogs.InfoDialog(self, "Información", "No hay ningún proyecto seleccionado para ver las métricas.", "info")
     
@@ -760,50 +689,31 @@ class ProjectListFrame(BaseListFrame):
         if not path:
             return
 
-        try:
-            project_data = dbcon.command("select", "projects", {"id": project_id})
-            if not project_data:
-                dialogs.InfoDialog(self, "Error", "No se han encontrado datos del proyecto para generar el reporte.", "error")
-                return
+        self._show_loading("Generando reporte…")
 
-            self._show_loading("Generando reporte…")
+        def _compute(pid: bytes, output_path: str):
+            result = self._report_use_case.execute(pid, output_path)
+            if not result.ok:
+                raise ValueError(result.error or "No se pudo generar el reporte.")
 
-            def _compute(proj, output_path):
-                training_data = proj[0]["training_results"]
-                project_type = proj[0]["type"]
-                num_rounds = proj[0]["training_round"]
-                generate_report(
-                    str(uuid.UUID(bytes=proj[0]["id"])),
-                    proj[0]["name"],
-                    proj[0]["description"],
-                    num_rounds,
-                    project_type,
-                    training_data,
-                    output_path,
-                )
+        future = self._executor.submit(_compute, project_id, path)
 
-            future = self._executor.submit(_compute, project_data, path)
-
-            def _done_callback(f):
-                def _finish_on_ui_thread():
-                    try:
-                        f.result()
-                        self._hide_loading()
-                        dialogs.InfoDialog(self, "Éxito", "Reporte generado correctamente.", "info")
-                    except Exception as e:
-                        self._hide_loading()
-                        dialogs.InfoDialog(self, "Error", f"No se pudo generar el reporte: {e}", "error")
-
+        def _done_callback(f):
+            def _finish_on_ui_thread():
                 try:
-                    self.after(0, _finish_on_ui_thread)
-                except Exception:
-                    pass
+                    f.result()
+                    self._hide_loading()
+                    dialogs.InfoDialog(self, "Éxito", "Reporte generado correctamente.", "info")
+                except Exception as e:
+                    self._hide_loading()
+                    dialogs.InfoDialog(self, "Error", f"No se pudo generar el reporte: {e}", "error")
 
-            future.add_done_callback(_done_callback)
+            try:
+                self.after(0, _finish_on_ui_thread)
+            except Exception:
+                pass
 
-        except (ValueError, DatabaseError) as e:
-            self._hide_loading()
-            dialogs.InfoDialog(self, "Error", f"No se pudo generar el reporte: {e}", "error")
+        future.add_done_callback(_done_callback)
 
     def _add_item(self):
         try: 
@@ -830,7 +740,7 @@ class ProjectListFrame(BaseListFrame):
                 try:
                     self._invalidate_nodes(project_id)
                     
-                    dbcon.command("delete", "projects", {"id": project_id})
+                    self._project_repository.delete(project_id)
                 except (ValueError, DatabaseError) as e:
                     dialogs.InfoDialog(self, "Error", str(e), "error")
 
@@ -847,16 +757,15 @@ class ProjectListFrame(BaseListFrame):
             project_id (bytes): The id of the project whose nodes are to be invalidated.
         """
         
-        project_data = dbcon.command("select", "projects", {"id": project_id}) 
-                    
+        project_data = self._project_repository.get_by_id(project_id)
         if project_data:
-            project_nodes = json.loads(project_data[0]["nodes"])
+            project_nodes = json.loads(project_data["nodes"])
                         
             for node_id in project_nodes:
                 self._eliminate_dataset(uuid.UUID(node_id).bytes)
                             
                 try:
-                    dbcon.command("update", "nodes", {"id": uuid.UUID(node_id).bytes, "valid": 0})
+                    self._node_repository.update({"id": uuid.UUID(node_id).bytes, "valid": 0})
                 except (ValueError, DatabaseError) as e:
                     dialogs.InfoDialog(self, "Error", str(e), "error")
                     
@@ -865,7 +774,7 @@ class ProjectListFrame(BaseListFrame):
         self.tree.delete(*self.tree.get_children())
         
         try:
-            projects = dbcon.command("select", "projects", {"uid": self.usuario['id']})
+            projects = self._project_repository.list_by_user(self.usuario["id"])
 
             formatted_projects = []
 

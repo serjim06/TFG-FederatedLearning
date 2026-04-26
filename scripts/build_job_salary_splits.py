@@ -1,15 +1,15 @@
 """
-Parte ``job_salary_prediction_dataset.csv`` en dos CSV numéricos (clientes A/B).
+Split ``job_salary_prediction_dataset.csv`` into two numeric CSVs (clients A/B).
 
-Codifica columnas categóricas con OrdinalEncoder (ajustado sobre todo el conjunto)
-para que coincida con ``job_salary_mlp_model.py`` y con ``node._load_xy_from_csv``.
+Encode categorical columns with OrdinalEncoder (fit on the full dataset)
+to match ``job_salary_mlp_model.py`` and ``node._load_xy_from_csv``.
 
-La aplicación también puede cargar ``job_salary_prediction_dataset.csv`` directamente
-(orden de columnas flexible y categóricas en texto) gracias a ``metadata.categorical_columns``
-en el modelo; para aprendizaje federado con varios nodos y **subconjuntos distintos** de
-categorías, este script sigue siendo la opción más coherente (un solo OrdinalEncoder global).
+The application can also load ``job_salary_prediction_dataset.csv`` directly
+(flexible column order and categorical text) thanks to ``metadata.categorical_columns``
+in the model; for federated learning with multiple nodes and **different subsets**
+of categories, this script remains the most consistent option (a single global OrdinalEncoder).
 
-Ejecución desde la raíz del repo:
+Run from the repository root:
 
     .venv\\Scripts\\python.exe scripts/build_job_salary_splits.py
 """

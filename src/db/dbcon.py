@@ -1,12 +1,14 @@
 import sqlite3
 import uuid
 import re
+import threading
 from sqlite3 import Connection, DatabaseError
 import os
 from typing import Dict, Any, Optional
 from src.security.passwords import hash_password
 
 database: Optional[Connection] = None
+_db_lock = threading.RLock()
 
 def connect(name):
     """
@@ -26,7 +28,7 @@ def connect(name):
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         DB_PATH = os.path.join(BASE_DIR,"..","..","database",name)
 
-        database = sqlite3.connect(DB_PATH)
+        database = sqlite3.connect(DB_PATH, check_same_thread=False)
 
         return True
     except sqlite3.OperationalError:
@@ -74,16 +76,17 @@ def command(command: str, table, obj) -> Any:
     if obj is None:
         raise ValueError("There has to be an object to modify")
 
-    if command == "insert":
-       return _insert(table, obj)
-    elif command == "update":
-        _update(table, obj)
-    elif command == "select":
-        return _select(table, obj)
-    elif command == "delete":
-        _delete(table, obj)
-    else:
-        raise ValueError("Invalid command")
+    with _db_lock:
+        if command == "insert":
+           return _insert(table, obj)
+        elif command == "update":
+            _update(table, obj)
+        elif command == "select":
+            return _select(table, obj)
+        elif command == "delete":
+            _delete(table, obj)
+        else:
+            raise ValueError("Invalid command")
 
 
 def _insert(table, obj:Dict[str,Any]):
