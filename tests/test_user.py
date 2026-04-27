@@ -12,6 +12,9 @@ def test_user_to_dict_roundtrip_fields() -> None:
         "role": "admin",
         "password_hash": "hash_a",
         "recovery_phrase_hash": "hash_r",
+        "creation_date": None,
+        "last_login": None,
+        "last_train": None,
     }
 
 
