@@ -5,6 +5,7 @@ from typing import Any
 from src.application.dto.operation_result import OperationResult
 from src.application.repositories.node_repository import NodeRepository
 from src.application.repositories.project_repository import ProjectRepository
+from src.db.dbcon import sqlite_timestamp_now
 
 
 class CreateProjectUseCase:
@@ -32,6 +33,7 @@ class CreateProjectUseCase:
             "output_features": json.dumps(form_data["output_features"]),
             "unconfirmed_results": json.dumps([]),
             "type": form_data["task_type"],
+            "created_at": sqlite_timestamp_now(),
         }
         project_row = self.project_repository.create(payload)
         selected_nodes = form_data["initial_nodes"]

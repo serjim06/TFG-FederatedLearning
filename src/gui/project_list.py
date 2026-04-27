@@ -28,6 +28,7 @@ from src.application.use_cases.run_federated_training import RunFederatedTrainin
 from src.application.use_cases.run_project_prediction import RunProjectPredictionUseCase
 from src.infrastructure.repositories.sqlite_node_repository import SQLiteNodeRepository
 from src.infrastructure.repositories.sqlite_project_repository import SQLiteProjectRepository
+from src.infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 
 class ProjectListFrame(BaseListFrame):
     def __init__(self, parent, switch_frame, usuario):
@@ -58,6 +59,7 @@ class ProjectListFrame(BaseListFrame):
             self._federated_use_case = RunFederatedTrainingUseCase(
                 self._project_repository,
                 self._node_repository,
+                SQLiteUserRepository(),
                 FederatedTrainingService(),
             )
             self._metrics_use_case = GetProjectMetricsUseCase(

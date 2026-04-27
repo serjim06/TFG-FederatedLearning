@@ -1,5 +1,6 @@
 from src.application.dto.operation_result import OperationResult
 from src.application.repositories.user_repository import UserRepository
+from src.db.dbcon import sqlite_timestamp_now
 from src.security.passwords import verify_password
 
 
@@ -16,4 +17,10 @@ class AuthenticateUserUseCase:
             return OperationResult(ok=False, error="Usuario o contraseña incorrectos")
         if not verify_password(password, row.get("password_hash")):
             return OperationResult(ok=False, error="Usuario o contraseña incorrectos")
-        return OperationResult(ok=True, data=row)
+        updated_row = self.user_repository.update(
+            {
+                "id": row["id"],
+                "last_login": sqlite_timestamp_now(),
+            }
+        )
+        return OperationResult(ok=True, data=updated_row)

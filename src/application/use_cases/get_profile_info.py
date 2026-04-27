@@ -28,6 +28,9 @@ class GetProfileInfoUseCase:
                 "role": user_row["role"],
                 "password_hash": user_row.get("password_hash"),
                 "recovery_phrase_hash": user_row.get("recovery_phrase_hash"),
+                "creation_date": user_row.get("creation_date"),
+                "last_login": user_row.get("last_login"),
+                "last_train": user_row.get("last_train"),
                 "project_count": len(projects),
             },
         )

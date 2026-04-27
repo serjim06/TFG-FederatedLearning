@@ -4,6 +4,7 @@ import re
 import threading
 from sqlite3 import Connection, DatabaseError
 import os
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from src.security.passwords import hash_password
 
@@ -109,6 +110,11 @@ def _insert(table, obj:Dict[str,Any]):
         raise DatabaseError("Error inserting object")
     finally:
         cursor.close()
+
+
+def sqlite_timestamp_now() -> str:
+    """Return current UTC timestamp in SQLite-compatible format."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 def _update(table, obj):
     if "id" not in obj:

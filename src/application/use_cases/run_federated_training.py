@@ -4,7 +4,9 @@ from typing import Any, Callable
 from src.application.dto.operation_result import OperationResult
 from src.application.repositories.node_repository import NodeRepository
 from src.application.repositories.project_repository import ProjectRepository
+from src.application.repositories.user_repository import UserRepository
 from src.application.services.federated_training_service import FederatedTrainingService
+from src.db.dbcon import sqlite_timestamp_now
 from src.models.node import merge_project_training_results
 
 
@@ -18,10 +20,12 @@ class RunFederatedTrainingUseCase:
         self,
         project_repository: ProjectRepository,
         node_repository: NodeRepository,
+        user_repository: UserRepository,
         training_service: FederatedTrainingService,
     ):
         self.project_repository = project_repository
         self.node_repository = node_repository
+        self.user_repository = user_repository
         self.training_service = training_service
 
     def execute(
@@ -51,6 +55,7 @@ class RunFederatedTrainingUseCase:
             project_row.get("training_results"),
             out["training_results_entry"],
         )
+        trained_at = sqlite_timestamp_now()
         update_payload: dict[str, Any] = {"id": project_id, "training_results": merged}
         if not project_row.get("type"):
             update_payload["type"] = (
@@ -60,7 +65,14 @@ class RunFederatedTrainingUseCase:
             )
         cur_data_round = int(project_row.get("training_round") or 0)
         update_payload["training_round"] = cur_data_round + int(rounds) + 1
+        update_payload["updated_at"] = trained_at
         self.project_repository.update(update_payload)
+        self.user_repository.update(
+            {
+                "id": project_row["uid"],
+                "last_train": trained_at,
+            }
+        )
         return OperationResult(
             ok=True,
             data={

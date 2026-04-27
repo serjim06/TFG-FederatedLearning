@@ -48,6 +48,27 @@ class ProfileFrame(tk.Frame):
         ttk.Label(self.info_frame, text=f"Rol: {profile['role']}",
                   font=label_font, background="#eef4fb").pack(pady=10, anchor="w", padx=10)
 
+        ttk.Label(
+            self.info_frame,
+            text=f"Fecha de creación: {profile.get('creation_date') or '-'}",
+            font=label_font,
+            background="#eef4fb",
+        ).pack(pady=10, anchor="w", padx=10)
+
+        ttk.Label(
+            self.info_frame,
+            text=f"Último login: {profile.get('last_login') or '-'}",
+            font=label_font,
+            background="#eef4fb",
+        ).pack(pady=10, anchor="w", padx=10)
+
+        ttk.Label(
+            self.info_frame,
+            text=f"Último entrenamiento: {profile.get('last_train') or '-'}",
+            font=label_font,
+            background="#eef4fb",
+        ).pack(pady=10, anchor="w", padx=10)
+
         project_count = profile.get("project_count", 0)
         ttk.Label(self.info_frame, text=f"Número de proyectos: {project_count}",
                   font=label_font, background="#eef4fb").pack(pady=10, anchor="w", padx=10)

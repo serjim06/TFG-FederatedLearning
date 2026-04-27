@@ -135,6 +135,7 @@ def test_create_and_update_project_use_cases():
     created = create_uc.execute(b"user", _sample_form_data())
     assert created.ok is True
     assert created.data["name"] == "p1"
+    assert created.data["created_at"]
     assert len(node_repo.updates) == 1
 
     previous = dict(created.data)
@@ -149,6 +150,8 @@ def test_create_and_update_project_use_cases():
 def test_run_federated_training_use_case_updates_training_results():
     project_repo = InMemoryProjectRepository()
     node_repo = InMemoryNodeRepository()
+    user_repo = InMemoryUserRepository()
+    user_repo.items[b"user"] = {"id": b"user", "username": "owner", "role": "user"}
     create_uc = CreateProjectUseCase(project_repo, node_repo)
     created = create_uc.execute(b"user", _sample_form_data())
     project_id = created.data["id"]
@@ -163,6 +166,7 @@ def test_run_federated_training_use_case_updates_training_results():
     use_case = RunFederatedTrainingUseCase(
         project_repo,
         node_repo,
+        user_repo,
         StubFederatedTrainingService(),
     )
     result = use_case.execute(project_id, 2)
@@ -171,6 +175,8 @@ def test_run_federated_training_use_case_updates_training_results():
     entries = json.loads(updated["training_results"])
     assert len(entries) == 1
     assert updated["training_round"] == 3
+    assert updated["updated_at"]
+    assert user_repo.get_by_id(b"user")["last_train"]
 
 
 def test_get_project_metrics_use_case_returns_payload():
@@ -210,8 +216,15 @@ def test_get_project_metrics_use_case_returns_payload():
 def test_user_management_use_cases():
     user_repo = InMemoryUserRepository()
     project_repo = InMemoryProjectRepository()
-    user_repo.items[b"u1"] = {"id": b"u1", "username": "admin", "role": "admin"}
-    user_repo.items[b"u2"] = {"id": b"u2", "username": "john", "role": "user"}
+    user_repo.items[b"u1"] = {"id": b"u1", "username": "admin", "role": "admin", "creation_date": "2026-01-01 00:00:00"}
+    user_repo.items[b"u2"] = {
+        "id": b"u2",
+        "username": "john",
+        "role": "user",
+        "creation_date": "2026-01-01 00:00:00",
+        "last_login": "2026-01-01 00:10:00",
+        "last_train": "2026-01-01 00:20:00",
+    }
     project_repo.items[b"p1"] = {"id": b"p1", "uid": b"u2", "name": "p", "description": ""}
 
     list_uc = ListManagedUsersUseCase(user_repo, project_repo)
@@ -219,6 +232,9 @@ def test_user_management_use_cases():
     assert out.ok is True
     assert len(out.data) == 1
     assert out.data[0]["project_count"] == 1
+    assert out.data[0]["creation_date"] == "2026-01-01 00:00:00"
+    assert out.data[0]["last_login"] == "2026-01-01 00:10:00"
+    assert out.data[0]["last_train"] == "2026-01-01 00:20:00"
 
     delete_uc = DeleteUserUseCase(user_repo, project_repo)
     deleted = delete_uc.execute(b"u2")
@@ -236,9 +252,11 @@ def test_register_and_authenticate_user_use_cases():
     assert created.data["username"] == "alice"
     assert created.data["password_hash"]
     assert created.data["recovery_phrase_hash"]
+    assert created.data["creation_date"]
 
     ok_login = auth_uc.execute("alice", "abc12345")
     assert ok_login.ok is True
+    assert ok_login.data["last_login"]
     bad_login = auth_uc.execute("alice", "bad-pass")
     assert bad_login.ok is False
 

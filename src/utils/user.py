@@ -6,12 +6,18 @@ class User:
         role,
         password_hash=None,
         recovery_phrase_hash=None,
+        creation_date=None,
+        last_login=None,
+        last_train=None,
     ):
         self.id = id
         self.username = username
         self.role = role
         self.password_hash = password_hash
         self.recovery_phrase_hash = recovery_phrase_hash
+        self.creation_date = creation_date
+        self.last_login = last_login
+        self.last_train = last_train
 
     def __getitem__(self, item):
         if hasattr(self, item):
@@ -50,4 +56,7 @@ class User:
             "role": self.role,
             "password_hash": self.password_hash,
             "recovery_phrase_hash": self.recovery_phrase_hash,
+            "creation_date": self.creation_date,
+            "last_login": self.last_login,
+            "last_train": self.last_train,
         }

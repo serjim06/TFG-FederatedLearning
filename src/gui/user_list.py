@@ -62,6 +62,9 @@ class UserListFrame(tk.Frame):
                 role=user["role"],
                 password_hash=user.get("password_hash"),
                 recovery_phrase_hash=user.get("recovery_phrase_hash"),
+                creation_date=user.get("creation_date"),
+                last_login=user.get("last_login"),
+                last_train=user.get("last_train"),
             )
             payload = real_user.to_dict()
             payload["project_count"] = user["project_count"]
@@ -104,6 +107,30 @@ class UserCard(tk.Frame):
         
         self.role_label = tk.Label(self, text=f"Role: {user_data['role']}", bg="#eeeeee", font=("Arial", 10))
         self.role_label.pack(anchor="w")
+
+        self.creation_date_label = tk.Label(
+            self,
+            text=f"Creation date: {user_data.get('creation_date') or '-'}",
+            bg="#eeeeee",
+            font=("Arial", 10),
+        )
+        self.creation_date_label.pack(anchor="w")
+
+        self.last_login_label = tk.Label(
+            self,
+            text=f"Last login: {user_data.get('last_login') or '-'}",
+            bg="#eeeeee",
+            font=("Arial", 10),
+        )
+        self.last_login_label.pack(anchor="w")
+
+        self.last_train_label = tk.Label(
+            self,
+            text=f"Last train: {user_data.get('last_train') or '-'}",
+            bg="#eeeeee",
+            font=("Arial", 10),
+        )
+        self.last_train_label.pack(anchor="w")
         
         self.bind_all()
         

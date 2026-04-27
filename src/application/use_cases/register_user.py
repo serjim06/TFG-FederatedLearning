@@ -1,5 +1,6 @@
 from src.application.dto.operation_result import OperationResult
 from src.application.repositories.user_repository import UserRepository
+from src.db.dbcon import sqlite_timestamp_now
 from src.security.auth_policy import validate_password_strength, validate_recovery_phrase
 from src.security.passwords import hash_password
 
@@ -41,6 +42,7 @@ class RegisterUserUseCase:
                 "password_hash": hash_password(password),
                 "recovery_phrase_hash": hash_password(recovery_phrase),
                 "role": "user",
+                "creation_date": sqlite_timestamp_now(),
             }
         )
         return OperationResult(ok=True, data=user)

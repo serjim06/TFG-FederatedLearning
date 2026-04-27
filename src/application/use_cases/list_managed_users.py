@@ -31,6 +31,9 @@ class ListManagedUsersUseCase:
                     "role": user["role"],
                     "password_hash": user.get("password_hash"),
                     "recovery_phrase_hash": user.get("recovery_phrase_hash"),
+                    "creation_date": user.get("creation_date"),
+                    "last_login": user.get("last_login"),
+                    "last_train": user.get("last_train"),
                     "project_count": n_projects,
                 }
             )

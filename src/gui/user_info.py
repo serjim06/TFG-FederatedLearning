@@ -58,6 +58,30 @@ class UserInfoDialog(tk.Toplevel):
         
         self.role_label = tk.Label(self.frame, text=f"Role: {user_data['role']}", font=("Arial", 10), bg="#eef4fb")
         self.role_label.pack(anchor="w", pady=5)
+
+        self.creation_date_label = tk.Label(
+            self.frame,
+            text=f"Creation date: {user_data.get('creation_date') or '-'}",
+            font=("Arial", 10),
+            bg="#eef4fb",
+        )
+        self.creation_date_label.pack(anchor="w", pady=5)
+
+        self.last_login_label = tk.Label(
+            self.frame,
+            text=f"Last login: {user_data.get('last_login') or '-'}",
+            font=("Arial", 10),
+            bg="#eef4fb",
+        )
+        self.last_login_label.pack(anchor="w", pady=5)
+
+        self.last_train_label = tk.Label(
+            self.frame,
+            text=f"Last train: {user_data.get('last_train') or '-'}",
+            font=("Arial", 10),
+            bg="#eef4fb",
+        )
+        self.last_train_label.pack(anchor="w", pady=5)
         
         project_repo = SQLiteProjectRepository()
         node_repo = SQLiteNodeRepository()
@@ -70,6 +94,20 @@ class UserInfoDialog(tk.Toplevel):
             project_frame = tk.Frame(self.frame, bg="#eef4fb", bd=1, relief="solid")
             project_label = tk.Label(project_frame, text=f"- {project['name']}", font=("Arial", 10), bg="#eef4fb")
             project_label.pack(anchor="w", padx=20)
+            created_label = tk.Label(
+                project_frame,
+                text=f"  Created at: {project.get('created_at') or '-'}",
+                font=("Arial", 10),
+                bg="#eef4fb",
+            )
+            created_label.pack(anchor="w", padx=30)
+            updated_label = tk.Label(
+                project_frame,
+                text=f"  Updated at: {project.get('updated_at') or '-'}",
+                font=("Arial", 10),
+                bg="#eef4fb",
+            )
+            updated_label.pack(anchor="w", padx=30)
             nodes_frame = tk.Frame(project_frame, bg="#eef4fb", bd=1, relief="solid")
             nodes = node_repo.list_by_project_id(project["id"])
             tk.Label(nodes_frame, text="  Nodes:", font=("Arial", 10, "bold"), bg="#eef4fb").pack(anchor="w", padx=30)
