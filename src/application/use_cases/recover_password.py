@@ -1,6 +1,5 @@
 from src.application.dto.operation_result import OperationResult
 from src.application.repositories.user_repository import UserRepository
-from src.security.auth_policy import validate_password_strength, validate_recovery_phrase
 from src.security.passwords import hash_password, verify_password
 
 
@@ -40,8 +39,6 @@ class RecoverPasswordUseCase:
         user = self.user_repository.get_by_id(user_id)
         if not user:
             return OperationResult(ok=False, error="Usuario o credenciales de recuperación incorrectos")
-        validate_password_strength(new_password)
-        validate_recovery_phrase(recovery_phrase)
         if not verify_password(recovery_phrase, user.get("recovery_phrase_hash")):
             return OperationResult(ok=False, error="Usuario o credenciales de recuperación incorrectos")
         self.user_repository.update({"id": user_id, "password_hash": hash_password(new_password)})

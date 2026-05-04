@@ -1,5 +1,4 @@
 import tkinter as tk
-import time
 from tkinter import ttk
 from src.application.use_cases.authenticate_user import AuthenticateUserUseCase
 from src.infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
@@ -8,15 +7,12 @@ import src.utils.utils as utils
 from src.gui import dialogs
 import src.utils.icons.image_finder as image_finder
 from PIL import ImageTk, Image
-from src.security.auth_policy import MAX_LOGIN_ATTEMPTS, LOCK_SECONDS, get_lock_message
 
 class LoginPanel(tk.Frame):
     def __init__(self, parent, switch_frame):
         super().__init__(parent)
         self.configure(bg="#eef4fb")
         self.switch_frame = switch_frame
-        self.failed_attempts = 0
-        self.locked_until = 0.0
         self._authenticate_user_use_case = AuthenticateUserUseCase(SQLiteUserRepository())
 
         style = utils.get_style()
@@ -81,19 +77,13 @@ class LoginPanel(tk.Frame):
         if not user or not passwd:
             dialogs.InfoDialog(self, "Error", "Rellena los campos", "error")
             return
-        if time.time() < self.locked_until:
-            dialogs.InfoDialog(self, "Error", get_lock_message(self.locked_until), "error")
-            return
 
         try:
             result = self._authenticate_user_use_case.execute(user, passwd)
             if not result.ok:
-                self._handle_failed_attempt()
                 dialogs.InfoDialog(self, "Error", result.error or "Usuario o contraseña incorrectos", "error")
                 return
             row = result.data
-            self.failed_attempts = 0
-            self.locked_until = 0.0
             new_user = User(
                 id=row["id"],
                 username=row["username"],
@@ -106,9 +96,3 @@ class LoginPanel(tk.Frame):
         except ValueError as e:
             dialogs.InfoDialog(self, "Error", str(e), "error")
             return
-
-    def _handle_failed_attempt(self):
-        self.failed_attempts += 1
-        if self.failed_attempts >= MAX_LOGIN_ATTEMPTS:
-            self.locked_until = time.time() + LOCK_SECONDS
-            self.failed_attempts = 0

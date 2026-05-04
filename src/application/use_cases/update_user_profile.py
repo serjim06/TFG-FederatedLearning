@@ -1,6 +1,5 @@
 from src.application.dto.operation_result import OperationResult
 from src.application.repositories.user_repository import UserRepository
-from src.security.auth_policy import validate_password_strength, validate_recovery_phrase
 from src.security.passwords import hash_password
 
 
@@ -36,12 +35,10 @@ class UpdateUserProfileUseCase:
         if password or password_confirm:
             if password != password_confirm:
                 return OperationResult(ok=False, error="Las contraseñas no coinciden")
-            validate_password_strength(password)
             update_payload["password_hash"] = hash_password(password)
         if recovery_phrase or recovery_confirm:
             if recovery_phrase != recovery_confirm:
                 return OperationResult(ok=False, error="Las frases de recuperación no coinciden")
-            validate_recovery_phrase(recovery_phrase)
             update_payload["recovery_phrase_hash"] = hash_password(recovery_phrase)
         if len(update_payload) == 1:
             return OperationResult(ok=False, error="No hay cambios para guardar")

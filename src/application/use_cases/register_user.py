@@ -1,7 +1,6 @@
 from src.application.dto.operation_result import OperationResult
 from src.application.repositories.user_repository import UserRepository
 from src.db.dbcon import sqlite_timestamp_now
-from src.security.auth_policy import validate_password_strength, validate_recovery_phrase
 from src.security.passwords import hash_password
 
 
@@ -31,8 +30,6 @@ class RegisterUserUseCase:
             return OperationResult(ok=False, error="Las contraseñas no coinciden")
         if recovery_phrase != recovery_confirm:
             return OperationResult(ok=False, error="Las frases de recuperación no coinciden")
-        validate_password_strength(password)
-        validate_recovery_phrase(recovery_phrase)
         existing = self.user_repository.get_by_username(username)
         if existing:
             return OperationResult(ok=False, error="El usuario ya existe")
