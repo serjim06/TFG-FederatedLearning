@@ -1,7 +1,6 @@
 import json
 import os
 from pathlib import Path
-import shutil
 from sqlite3 import DatabaseError
 import tkinter as tk
 from tkinter import ttk
@@ -90,11 +89,12 @@ class NewProject(ttk.Frame):
         ]
     }
 
-    def __init__(self, parent, project, user_id=None, *, grid_row=0):
+    def __init__(self, parent, project, user_id=None, create_project_use_case: CreateProjectUseCase | None = None, *, grid_row=0):
         super().__init__(parent, padding=10)
         self.configure(style="TFrame")
         
         self.user_id = user_id
+        self._create_project_use_case = create_project_use_case
         self._node_repository = SQLiteNodeRepository()
 
         parent.columnconfigure(0, weight=1)
@@ -440,59 +440,20 @@ class NewProject(ttk.Frame):
                 nombre_modulo = os.path.basename(ruta_inicial)
                 self.model_name.set(nombre_modulo)
                 
-                self.input_features, self.output_features, suggested_task = self._load_features(clase)
+                if self._create_project_use_case is None:
+                    raise ValueError("No hay caso de uso disponible para preparar el modelo.")
+                model_data = self._create_project_use_case.inspect_model(clase)
+                self.input_features = model_data["input_features"]
+                self.output_features = model_data["output_features"]
+                suggested_task = model_data["suggested_task"]
                 if suggested_task:
                     self.task_type_cb.set(suggested_task)
                 self._sync_loss_options_for_task()
 
-                self.ruta = self._copy_model(ruta_inicial)
-                self.ruta = Path(self.ruta).as_posix()
+                self.ruta = ruta_inicial
         except Exception as e:
             dialogs.InfoDialog(self, "Error", f"Ocurrió un error al cargar el modelo: {str(e)}", "error")
             return
-                        
-    def _copy_model(self, ruta_inicial):
-        base_dir = os.path.join(os.getcwd(), "database", "models", str(uuid.UUID(bytes=self.user_id)))     
-        
-        nombre_archivo = os.path.basename(ruta_inicial)
-        destino = os.path.join(base_dir, nombre_archivo) 
-        os.makedirs(base_dir, exist_ok=True)
-        try:
-            shutil.copy2(ruta_inicial, destino)
-            
-            return os.path.relpath(destino, start=os.getcwd())  
-        
-        except Exception as e:
-            raise OSError(f"No se pudo copiar el archivo: {str(e)}")
-            
-    def _load_features(self, clase):
-        modelo = clase()
-        required_keys = {"input_features", "output_features"}
-        
-        features = modelo.get_features() 
-            
-        if not isinstance(features, dict) or not required_keys.issubset(features.keys()) or not all(isinstance(features[key], list) for key in required_keys):
-            raise ValueError("El método get_features() debe retornar un diccionario con las claves 'input_features' y 'output_features', cuyos valores deben ser listas de nombres de características.")
-
-        suggested = None
-        meta = features.get("metadata")
-        if isinstance(meta, dict):
-            suggested = self._coerce_task_type(meta.get("type"))
-        if suggested is None:
-            suggested = self._coerce_task_type(features.get("type"))
-
-        return features["input_features"], features["output_features"], suggested
-
-    @staticmethod
-    def _coerce_task_type(raw) -> str | None:
-        if not isinstance(raw, str) or not raw.strip():
-            return None
-        t = raw.strip().lower()
-        if t in ("regression", "regresssion"):
-            return "regression"
-        if t == "classification":
-            return "classification"
-        return None
 
     def _sync_loss_options_for_task(self) -> None:
         task = self.task_type_cb.get()
@@ -665,7 +626,7 @@ class NewProjectDialog(tk.Toplevel):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
         
-        self.form = NewProject(self, None, user_id)
+        self.form = NewProject(self, None, user_id, create_project_use_case=self._create_project_use_case)
 
         btns = ttk.Frame(self, padding=10)
         btns.grid(row=1, column=0, sticky="ew")
