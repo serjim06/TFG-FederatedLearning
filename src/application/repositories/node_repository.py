@@ -15,7 +15,7 @@ class NodeRepository(ABC):
 
     @abstractmethod
     def list_by_project_id(self, project_id: bytes) -> list[dict[str, Any]]:
-        """Return nodes assigned to one project."""
+        """Return active nodes assigned to one project."""
 
     @abstractmethod
     def get_by_id(self, node_id: bytes) -> dict[str, Any] | None:

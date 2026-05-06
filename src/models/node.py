@@ -1126,10 +1126,7 @@ class Node:
         self.id = id
         self.valid = valid
         self.project_id = project_id
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        self.local_dataset_path = os.path.join(
-            BASE_DIR, "..", "..", "database", "datasets", "node_" + str(uuid.UUID(bytes=id))
-        )
+        self.local_dataset_path = str(DATASETS_ROOT / f"node_{_node_uuid_str(id)}")
 
     def __getitem__(self, item):
         if hasattr(self, item):

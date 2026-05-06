@@ -95,14 +95,10 @@ class RunFederatedTrainingUseCase:
         """Validate each node dataset exists for the current training round."""
         round_num = int(project_row.get("training_round") or 0)
         missing_paths: list[str] = []
+        datasets_root = Path(__file__).resolve().parents[3] / "database" / "datasets"
         for node in nodes:
-            dataset_dir = node.get("local_dataset_path")
-            if not dataset_dir:
-                node_uuid = str(uuid.UUID(bytes=node["id"]))
-                dataset_dir = str(
-                    Path(__file__).resolve().parents[3] / "database" / "datasets" / f"node_{node_uuid}"
-                )
-            dataset_path = Path(str(dataset_dir)) / f"dataset_{round_num}.csv"
+            node_uuid = str(uuid.UUID(bytes=node["id"]))
+            dataset_path = datasets_root / f"node_{node_uuid}" / f"dataset_{round_num}.csv"
             if not dataset_path.is_file():
                 missing_paths.append(str(dataset_path))
         if not missing_paths:

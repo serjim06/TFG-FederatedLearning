@@ -14,7 +14,7 @@ class SQLiteNodeRepository(NodeRepository):
         return dbcon.command("select", "nodes", {"id": "*", "valid": 0})
 
     def list_by_project_id(self, project_id: bytes) -> list[dict[str, Any]]:
-        return dbcon.command("select", "nodes", {"project_id": project_id})
+        return dbcon.command("select", "nodes", {"project_id": project_id, "valid": 1})
 
     def get_by_id(self, node_id: bytes) -> dict[str, Any] | None:
         rows = dbcon.command("select", "nodes", {"id": node_id})

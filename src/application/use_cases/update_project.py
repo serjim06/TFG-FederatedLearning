@@ -44,7 +44,7 @@ class UpdateProjectUseCase:
         for node_id in removed:
             if on_node_removed is not None:
                 on_node_removed(node_id)
-            self.node_repository.update({"id": node_id, "valid": 0})
+            self.node_repository.update({"id": node_id, "valid": 0, "project_id": ""})
         for node_id in new_nodes:
             self.node_repository.update({"id": node_id, "valid": 1, "project_id": project_id})
         return OperationResult(ok=True, data=project_row)
