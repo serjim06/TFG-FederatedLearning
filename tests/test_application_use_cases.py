@@ -1,4 +1,5 @@
 import json
+import uuid
 from pathlib import Path
 
 from src.application.services.federated_training_service import FederatedTrainingService
@@ -112,6 +113,15 @@ class StubFederatedTrainingService(FederatedTrainingService):
         }
 
 
+_SAMPLE_USER_ID = uuid.UUID("00000000-0000-0000-0000-0000000000aa").bytes
+
+
+def _ensure_sample_model_file(root: Path) -> None:
+    path = root / "database" / "models" / "a.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("def get_features():\n    return {}\n", encoding="utf-8")
+
+
 def _sample_form_data():
     return {
         "name": "p1",
@@ -127,13 +137,15 @@ def _sample_form_data():
     }
 
 
-def test_create_and_update_project_use_cases():
+def test_create_and_update_project_use_cases(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _ensure_sample_model_file(tmp_path)
     project_repo = InMemoryProjectRepository()
     node_repo = InMemoryNodeRepository()
     create_uc = CreateProjectUseCase(project_repo, node_repo)
     update_uc = UpdateProjectUseCase(project_repo, node_repo)
 
-    created = create_uc.execute(b"user", _sample_form_data())
+    created = create_uc.execute(_SAMPLE_USER_ID, _sample_form_data())
     assert created.ok is True
     assert created.data["name"] == "p1"
     assert created.data["created_at"]
@@ -148,13 +160,15 @@ def test_create_and_update_project_use_cases():
     assert updated.data["name"] == "p2"
 
 
-def test_run_federated_training_use_case_updates_training_results():
+def test_run_federated_training_use_case_updates_training_results(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _ensure_sample_model_file(tmp_path)
     project_repo = InMemoryProjectRepository()
     node_repo = InMemoryNodeRepository()
     user_repo = InMemoryUserRepository()
-    user_repo.items[b"user"] = {"id": b"user", "username": "owner", "role": "user"}
+    user_repo.items[_SAMPLE_USER_ID] = {"id": _SAMPLE_USER_ID, "username": "owner", "role": "user"}
     create_uc = CreateProjectUseCase(project_repo, node_repo)
-    created = create_uc.execute(b"user", _sample_form_data())
+    created = create_uc.execute(_SAMPLE_USER_ID, _sample_form_data())
     project_id = created.data["id"]
     project_repo.update(
         {
@@ -187,7 +201,7 @@ def test_run_federated_training_use_case_updates_training_results():
     assert len(entries) == 1
     assert updated["training_round"] == 3
     assert updated["updated_at"]
-    assert user_repo.get_by_id(b"user")["last_train"]
+    assert user_repo.get_by_id(_SAMPLE_USER_ID)["last_train"]
 
 
 def test_get_project_metrics_use_case_returns_payload():
