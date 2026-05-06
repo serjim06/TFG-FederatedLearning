@@ -26,6 +26,7 @@ from src.application.use_cases.generate_project_report import GenerateProjectRep
 from src.application.use_cases.get_project_metrics import GetProjectMetricsUseCase
 from src.application.use_cases.run_federated_training import RunFederatedTrainingUseCase
 from src.application.use_cases.run_project_prediction import RunProjectPredictionUseCase
+from src.application.use_cases.delete_project import DeleteProjectUseCase
 from src.infrastructure.repositories.sqlite_node_repository import SQLiteNodeRepository
 from src.infrastructure.repositories.sqlite_project_repository import SQLiteProjectRepository
 from src.infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
@@ -75,6 +76,10 @@ class ProjectListFrame(BaseListFrame):
                 self._project_repository,
                 self._node_repository,
                 PredictionService(),
+            )
+            self._delete_project_use_case = DeleteProjectUseCase(
+                self._project_repository,
+                self._node_repository,
             )
 
     def destroy(self):
@@ -743,9 +748,13 @@ class ProjectListFrame(BaseListFrame):
                 project_id = uuid.UUID(values[0]).bytes
                 
                 try:
-                    self._invalidate_nodes(project_id)
-                    
-                    self._project_repository.delete(project_id)
+                    result = self._delete_project_use_case.execute(
+                        project_id,
+                        on_node_removed=self._eliminate_dataset,
+                        on_node_update_error=lambda e: dialogs.InfoDialog(self, "Error", str(e), "error"),
+                    )
+                    if not result.ok:
+                        raise ValueError(result.error or "No se pudo eliminar el proyecto.")
                 except (ValueError, DatabaseError) as e:
                     dialogs.InfoDialog(self, "Error", str(e), "error")
 
@@ -754,23 +763,6 @@ class ProjectListFrame(BaseListFrame):
         else:
             dialogs.InfoDialog(self, "Información", "No hay ningún nodo seleccionado para eliminar.", "info")
 
-    def _invalidate_nodes(self, project_id):
-        """
-        Invalidates nodes associated with a project and removes their datasets, as they are unlikely to be used anymore.
-        
-        Args:
-            project_id (bytes): The id of the project whose nodes are to be invalidated.
-        """
-        
-        project_nodes = self._node_repository.list_by_project_id(project_id)
-        for node_row in project_nodes:
-            self._eliminate_dataset(node_row["id"])
-            try:
-                self._node_repository.update({"id": node_row["id"], "valid": 0, "project_id": ""})
-            except (ValueError, DatabaseError) as e:
-                dialogs.InfoDialog(self, "Error", str(e), "error")
-                    
-    
     def _initialize_tree(self):
         self.tree.delete(*self.tree.get_children())
         
