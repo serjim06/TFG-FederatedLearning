@@ -47,7 +47,7 @@ class App(tk.Tk):
                 self.usuario_actual = usuario
             frame = dashboard.DashboardFrame(self.container, self.show_frame, self.usuario_actual)
         elif name == "profile":
-            self.geometry("600x600")
+            self.geometry("600x650")
             frame = profile.ProfileFrame(self.container, self.show_frame, usuario)
         elif name == "modify":
             self.geometry("600x630")

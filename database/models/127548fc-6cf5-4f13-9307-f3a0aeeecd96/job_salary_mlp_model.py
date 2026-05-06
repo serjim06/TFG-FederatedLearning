@@ -1,9 +1,9 @@
 """
-Modelo MLP para regresión de salario (dataset job salary, CSV numérico tras
+MLP model for salary regression (job salary dataset, numeric CSV after
 ``scripts/build_job_salary_splits.py``).
 
-Columnas del CSV (cabecera): mismas que ``INPUT_FEATURES`` + ``salary`` al final.
-En la GUI, métrica del proyecto: ``mean_squared_error`` (regresión).
+CSV columns (header): same as ``INPUT_FEATURES`` + ``salary`` at the end.
+In the GUI, the project metric is: ``mean_squared_error`` (regression).
 """
 
 from __future__ import annotations

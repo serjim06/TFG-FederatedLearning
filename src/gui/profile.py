@@ -38,13 +38,6 @@ class ProfileFrame(tk.Frame):
         ttk.Label(self.info_frame, text=f"Usuario: {profile['username']}",
                   font=label_font, background="#eef4fb").pack(pady=10, anchor="w", padx=10)
 
-        ttk.Label(
-            self.info_frame,
-            text="Contraseña: protegida",
-            font=label_font,
-            background="#eef4fb"
-        ).pack(pady=(15, 10), anchor="w", padx=10)
-
         ttk.Label(self.info_frame, text=f"Rol: {profile['role']}",
                   font=label_font, background="#eef4fb").pack(pady=10, anchor="w", padx=10)
 

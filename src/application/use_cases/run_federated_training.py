@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 from typing import Any, Callable
 
 from src.application.dto.operation_result import OperationResult
@@ -44,6 +45,9 @@ class RunFederatedTrainingUseCase:
                 ok=False,
                 error="El proyecto no tiene nodos asignados. Añade nodos en la configuración del proyecto.",
             )
+        missing_dataset_error = self._validate_node_datasets(project_row, nodes)
+        if missing_dataset_error:
+            return OperationResult(ok=False, error=missing_dataset_error)
         node_ids = [str(uuid.UUID(bytes=node["id"])) for node in nodes]
         out = self.training_service.run(
             project_row,
@@ -81,4 +85,36 @@ class RunFederatedTrainingUseCase:
                 "project_row": project_row,
                 "rounds": rounds,
             },
+        )
+
+    def _validate_node_datasets(
+        self,
+        project_row: dict[str, Any],
+        nodes: list[dict[str, Any]],
+    ) -> str | None:
+        """Validate each node dataset exists for the current training round."""
+        round_num = int(project_row.get("training_round") or 0)
+        missing_paths: list[str] = []
+        for node in nodes:
+            dataset_dir = node.get("local_dataset_path")
+            if not dataset_dir:
+                node_uuid = str(uuid.UUID(bytes=node["id"]))
+                dataset_dir = str(
+                    Path(__file__).resolve().parents[3] / "database" / "datasets" / f"node_{node_uuid}"
+                )
+            dataset_path = Path(str(dataset_dir)) / f"dataset_{round_num}.csv"
+            if not dataset_path.is_file():
+                missing_paths.append(str(dataset_path))
+        if not missing_paths:
+            return None
+        first_missing = missing_paths[0]
+        if len(missing_paths) == 1:
+            return (
+                f"No existe el dataset local esperado: {first_missing}. "
+                "Añade datos con la opción «Añadir dataset» o crea el CSV."
+            )
+        return (
+            "Faltan datasets locales para iniciar el entrenamiento federado. "
+            f"Primer archivo ausente: {first_missing}. "
+            "Añade datos con la opción «Añadir dataset» o crea los CSV."
         )

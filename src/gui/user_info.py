@@ -34,10 +34,15 @@ class UserInfoDialog(tk.Toplevel):
             SQLiteProjectRepository(),
         )
         
-        self.top_frame = tk.Frame(self)
+        self.top_frame = tk.Frame(self, bg="#eef4fb", bd=0, highlightthickness=0)
         self.top_frame.pack(fill="both", expand=True)
         
-        self.canvas = tk.Canvas(self.top_frame, borderwidth=0, background="#eef4fb")
+        self.canvas = tk.Canvas(
+            self.top_frame,
+            borderwidth=0,
+            highlightthickness=0,
+            background="#eef4fb",
+        )
         self.frame = tk.Frame(self.canvas, background="#eef4fb")
         self.vsb = tk.Scrollbar(self.top_frame, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vsb.set)
@@ -117,7 +122,7 @@ class UserInfoDialog(tk.Toplevel):
             nodes_frame.pack(fill="both", expand=True, padx=10, pady=5)
             project_frame.pack(fill="both", expand=True, padx=10, pady=5)
             
-        self.buttons_frame = tk.Frame(self)
+        self.buttons_frame = tk.Frame(self, bg="#eef4fb", bd=0, highlightthickness=0)
         self.buttons_frame.pack(pady=10)
         
         ttk.Button(self.buttons_frame, text="Volver", command=self.destroy, style="Sec.TButton").pack(side="left", padx=5)

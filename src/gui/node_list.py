@@ -68,18 +68,13 @@ class NodeListFrame(BaseListFrame):
                 node_id = uuid.UUID(values[0]).bytes
                 
                 try:
-                    self._eliminate_dataset(node_id)
-                except Exception as e:
-                    dialogs.InfoDialog(self, "Error", f"No se pudo eliminar el dataset asociado al nodo: {e}", "error")
-                    canceled.append(item)
-                    continue
-            
-                try:
                     result = self._manage_nodes_use_case.delete(node_id)
                     if not result.ok:
                         dialogs.InfoDialog(self, "Error", result.error or "No se pudo eliminar el nodo", "error")
+                        canceled.append(item)
                 except (ValueError, DatabaseError) as e:
                     dialogs.InfoDialog(self, "Error", str(e), "error")
+                    canceled.append(item)
                 
             self._update_tree_after_delete(seleccionado, canceled)
         else:
