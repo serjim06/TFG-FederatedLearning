@@ -25,7 +25,6 @@ INPUT_FEATURES: list[str] = [
 ]
 OUTPUT_FEATURES: list[str] = ["NOx"]
 TASK: str = "regression"
-CATEGORICAL_FEATURES: list[str] = ["Date", "Time"]
 HIDDEN_SIZES: tuple[int, ...] = (256, 128, 64)
 DROPOUT: float = 0.1
 
