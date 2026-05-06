@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from src.application.services.federated_training_service import FederatedTrainingService
 from src.application.services.metrics_service import MetricsService
@@ -169,6 +170,16 @@ def test_run_federated_training_use_case_updates_training_results():
         user_repo,
         StubFederatedTrainingService(),
     )
+    node_uuid = "00000000-0000-0000-0000-000000000001"
+    dataset_path = (
+        Path(__file__).resolve().parents[1]
+        / "database"
+        / "datasets"
+        / f"node_{node_uuid}"
+        / "dataset_0.csv"
+    )
+    dataset_path.parent.mkdir(parents=True, exist_ok=True)
+    dataset_path.write_text("a,b\n1,0\n", encoding="utf-8")
     result = use_case.execute(project_id, 2)
     assert result.ok is True
     updated = project_repo.get_by_id(project_id)
