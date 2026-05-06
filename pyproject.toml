@@ -14,7 +14,8 @@ dependencies = [
     "torch",
     "reportlab",
     "scikit-learn",
-    "matplotlib"
+    "matplotlib",
+    "TkToolTip"
 ]
 
 [project.optional-dependencies]
