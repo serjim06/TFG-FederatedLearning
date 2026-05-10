@@ -42,7 +42,11 @@ class BaseDialog(tk.Toplevel):
         """
         if command is None:
             command = self.destroy
-        ttk.Button(self, text="OK", style=utils.SEC_TBUTTON_STYLE, command=command).pack(pady=10)
+        ok_button = ttk.Button(self, text="OK", style=utils.SEC_TBUTTON_STYLE, command=command)
+        ok_button.pack(pady=10)
+        ok_button.focus_set()
+        self.bind("<Return>", lambda _event: command())
+        self.bind("<KP_Enter>", lambda _event: command())
 
 
 class InfoDialog(BaseDialog):

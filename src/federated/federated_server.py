@@ -209,6 +209,15 @@ class _FederatedNumPyClient(NumPyClient):
                 device=device,
                 correction_by_param=correction_by_param,
             )
+
+            out_arrays = _state_dict_to_ndarrays(net.state_dict())
+            new_c_client = []
+            for j in range(len(in_arrays)):
+                delta_x = in_arrays[j] - out_arrays[j]
+                ci_plus = c_client[j] - c_global[j] + (1 / (steps_done * lr)) * delta_x
+                new_c_client.append(ci_plus)
+            
+            metrics_out["scaffold_ci_new"] = _ndarrays_to_json(new_c_client)
         else:
             nm._train_loop(
                 net,
@@ -374,14 +383,16 @@ def _collect_round_client_stats(
             yt, yp = nm._gather_predictions(gnet, val_loader, device, task, metrics)
             round_r2 = float(r2_score(yt, yp)) if len(yt) > 0 else float("nan")
             client_r2s.append(round_r2)
-            client_stats.append(
-                {
-                    "client_id": ns,
-                    "val_loss": float(ev["loss"]),
-                    "n_val_samples": int(n_samples),
-                    "r2": round_r2,
-                }
-            )
+            regression_entry: dict[str, Any] = {
+                "client_id": ns,
+                "val_loss": float(ev["loss"]),
+                "n_val_samples": int(n_samples),
+                "r2": round_r2,
+            }
+            if full_detail:
+                regression_entry["y_true"] = np.asarray(yt).astype(float).ravel().tolist()
+                regression_entry["y_pred"] = np.asarray(yp).astype(float).ravel().tolist()
+            client_stats.append(regression_entry)
             continue
 
         if not full_detail:
@@ -530,7 +541,7 @@ def run_federated_training(
         round_time = round_times[r] if r < len(round_times) else 0.0
         snap = snapshots[r]
         is_last = r == num_federated_rounds - 1
-        collect_full_detail = is_last or task == "regression"
+        collect_full_detail = is_last
 
         client_stats, val_losses, acc_weights, client_accs, client_r2s = _collect_round_client_stats(
             snap,

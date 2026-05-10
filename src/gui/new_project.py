@@ -231,9 +231,7 @@ class NewProject(ttk.Frame):
                 "fed_avg",
                 "fed_med",
                 "fed_scaffold",
-                "fed_ssfed",
-                "fed_sum",
-                "fed_weighted",
+                "fed_ssfed"
             ],
             state="readonly",
         )

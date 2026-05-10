@@ -513,7 +513,7 @@ def _compute_batch_loss(
 
     if yb.dtype != torch.long:
         yb = yb.long()
-    return criterion(out, yb.squeeze())
+    return criterion(out, yb.view(-1))
 
 
 def _train_loop(

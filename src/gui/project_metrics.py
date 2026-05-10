@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+from matplotlib.ticker import MaxNLocator
 
 from src.application.services.project_metrics_calculations import round_indices_for_metrics
 from src.utils import utils
@@ -205,29 +206,27 @@ class ProjectMetricsDialog(tk.Toplevel):
             return
 
         rounds = sorted(composed_changes.keys())
-        x = np.array(rounds, dtype=float)
+        positions = np.arange(len(rounds), dtype=float)
         freq = np.array([composed_changes[rnd]["length"] for rnd in rounds], dtype=float)
         added = np.array([len(composed_changes[rnd]["added"]) for rnd in rounds], dtype=float)
 
         added_capped = np.minimum(added, freq)
         normal_part = np.maximum(0, freq - added_capped)
-        
+
         fig, ax = plt.subplots(figsize=(4,3), dpi=100)
 
-        if len(x) > 1:
-            min_step = np.min(np.diff(x))
-            bar_width = max(0.4, min(0.8, float(min_step) * 0.7))
-        else:
-            bar_width = 0.6
+        bar_width = 0.6
 
-        ax.bar(x, normal_part, width=bar_width, color=color_normal, edgecolor='black', alpha=0.8, label="Datos sin modificar")
-        ax.bar(x, added_capped, width=bar_width, bottom=normal_part, color=color_added, edgecolor='black', alpha=0.8, label="Datos añadidos")
+        ax.bar(positions, normal_part, width=bar_width, color=color_normal, edgecolor='black', alpha=0.8, label="Datos sin modificar")
+        ax.bar(positions, added_capped, width=bar_width, bottom=normal_part, color=color_added, edgecolor='black', alpha=0.8, label="Datos añadidos")
 
         if len(added) > 0:
-            ax.step(x, added, where="mid", color="#2C3E50", linestyle="--", linewidth=2, label="Añadidos por ronda")
+            ax.step(positions, added, where="mid", color="#2C3E50", linestyle="--", linewidth=2, label="Añadidos por cambio")
 
-        ax.set_xticks(x)
-        ax.set_xlabel("Rondas")
+        ax.set_xticks(positions)
+        ax.set_xticklabels([str(rnd) for rnd in rounds])
+        ax.set_xlim(-0.5, len(rounds) - 0.5)
+        ax.set_xlabel("Ronda federada del cambio")
         ax.set_ylabel("Datos en datasets")
         ax.set_title("Cambios en los datasets")
         ax.legend()
@@ -386,8 +385,8 @@ class ProjectMetricsDialog(tk.Toplevel):
 
         all_rounds = sorted(set(rounds_data) | set(rounds_metrics))
         if all_rounds:
-            ax1.set_xticks(all_rounds)
             ax1.set_xlim(min(all_rounds) - 0.5, max(all_rounds) + 0.5)
+            ax1.xaxis.set_major_locator(MaxNLocator(integer=True, nbins=8, prune="both"))
 
         plt.title(f'Impacto del volumen de datos y participación en la pérdida', pad=15)
 

@@ -23,7 +23,7 @@ class MetricsService:
         project_type = project_row["type"]
         metrics = get_metrics_per_round(training_data, project_type)
         if project_type == "regression":
-            _, y_true_total, y_pred_total = get_regression_metrics_bundle(training_data)
+            y_true_total, y_pred_total = _resolve_regression_scatter_series(training_data)
         else:
             y_true_total, y_pred_total = [], []
         time_per_round = get_time_per_round(training_data)
@@ -38,3 +38,31 @@ class MetricsService:
             "y_true_total": y_true_total,
             "y_pred_total": y_pred_total,
         }
+
+
+def _resolve_regression_scatter_series(
+    training_data: list[dict[str, Any]],
+) -> tuple[list[float], list[float]]:
+
+    if training_data:
+        latest = training_data[-1]
+        final_metrics = latest.get("final_metrics") or {}
+        yt_final = list(final_metrics.get("y_true_final") or [])
+        yp_final = list(final_metrics.get("y_pred_final") or [])
+        if yt_final and yp_final:
+            return yt_final, yp_final
+
+        rounds = latest.get("results_per_round") or []
+        if rounds:
+            last_round_stats = rounds[-1].get("client_stats") or []
+            yt_last: list[float] = []
+            yp_last: list[float] = []
+            for client in last_round_stats:
+                if isinstance(client, dict) and "y_true" in client and "y_pred" in client:
+                    yt_last.extend(client["y_true"])
+                    yp_last.extend(client["y_pred"])
+            if yt_last and yp_last:
+                return yt_last, yp_last
+
+    _, y_true_total, y_pred_total = get_regression_metrics_bundle(training_data)
+    return y_true_total, y_pred_total

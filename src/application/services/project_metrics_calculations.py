@@ -25,29 +25,73 @@ def round_indices_for_metrics(metrics: list) -> list[int]:
 
 
 def get_datasets_changes(nodes):
-    """Collect dataset additions per node and composed by round."""
-    datasets_changes = {}
-    composed_changes = {}
+    """Collect dataset snapshots per node and composed totals by round.
+    """
+    datasets_root = Path(__file__).resolve().parents[3] / "database" / "datasets"
+    pattern = re.compile(r"dataset_(\d+)\.csv")
+    datasets_changes: dict[str, dict[int, dict]] = {}
     for node in nodes:
-        path = Path(__file__).resolve().parent.parent.parent.parent / "database" / "datasets" / node
-        pattern = re.compile(r"dataset_(\d+)\.csv")
-        found_files = []
-        if not path.exists():
+        node_dir = datasets_root / f"node_{node}"
+        if not node_dir.exists():
             continue
-        for file_path in path.glob("dataset_*.csv"):
+        found_files: list[tuple[int, Path]] = []
+        for file_path in node_dir.glob("dataset_*.csv"):
             match = pattern.search(file_path.name)
             if match:
                 found_files.append((int(match.group(1)), file_path))
         if found_files:
-            datasets_changes[node] = _get_files_changes(found_files)
-            for change in datasets_changes[node].values():
-                if not isinstance(change, dict):
-                    continue
-                if change["round"] not in composed_changes:
-                    composed_changes[change["round"]] = {"added": [], "length": 0}
-                composed_changes[change["round"]]["added"].extend(change["added"])
-                composed_changes[change["round"]]["length"] += change["length"]
+            datasets_changes[node] = _per_node_snapshots(found_files)
+    composed_changes = _compose_dataset_snapshots(datasets_changes)
     return {"datasets_changes": datasets_changes, "composed_changes": composed_changes}
+
+
+def _per_node_snapshots(files: list[tuple[int, Path]]) -> dict[int, dict]:
+    snapshots: dict[int, dict] = {}
+    sorted_files = sorted(files, key=lambda x: x[0])
+    first_round, first_path = sorted_files[0]
+    with open(first_path, "r", encoding="utf-8") as file_obj:
+        prev_lines = file_obj.readlines()
+    snapshots[first_round] = {
+        "length": max(0, len(prev_lines) - 1),
+        "added": [line.strip().split(",") for line in prev_lines[1:]],
+    }
+    for cur_round, cur_path in sorted_files[1:]:
+        with open(cur_path, "r", encoding="utf-8") as file_obj:
+            cur_lines = file_obj.readlines()
+        prev_counter = Counter(line.strip() for line in prev_lines[1:])
+        cur_counter = Counter(line.strip() for line in cur_lines[1:])
+        added: list[list[str]] = []
+        for row_text, cur_count in cur_counter.items():
+            diff = cur_count - prev_counter.get(row_text, 0)
+            if diff > 0:
+                added.extend(row_text.split(",") for _ in range(diff))
+        snapshots[cur_round] = {
+            "length": max(0, len(cur_lines) - 1),
+            "added": added,
+        }
+        prev_lines = cur_lines
+    return snapshots
+
+
+def _compose_dataset_snapshots(
+    per_node_snapshots: dict[str, dict[int, dict]],
+) -> dict[int, dict]:
+    """Aggregate per-node snapshots so each round reports total project volume."""
+    composed: dict[int, dict] = {}
+    if not per_node_snapshots:
+        return composed
+    all_rounds = sorted({rnd for snaps in per_node_snapshots.values() for rnd in snaps})
+    for rnd in all_rounds:
+        total_length = 0
+        total_added: list[list[str]] = []
+        for node_snaps in per_node_snapshots.values():
+            previous_rounds = [r for r in node_snaps if r <= rnd]
+            if previous_rounds:
+                total_length += node_snaps[max(previous_rounds)]["length"]
+            if rnd in node_snaps:
+                total_added.extend(node_snaps[rnd]["added"])
+        composed[rnd] = {"length": total_length, "added": total_added}
+    return composed
 
 
 def get_time_per_round(training_data):
@@ -86,31 +130,6 @@ def _get_classification_metrics(training_data):
     return metrics
 
 
-def _get_files_changes(files):
-    changes = {}
-    sorted_files = sorted(files, key=lambda x: x[0])
-    file_0 = sorted_files[0][1]
-    with open(file_0, "r", encoding="utf-8") as file_obj:
-        lines_prev = file_obj.readlines()
-        changes[0] = {"round": sorted_files[0][0], "added": [], "length": len(lines_prev) - 1}
-        for line in lines_prev[1:]:
-            changes[0]["added"].append(line.strip().split(","))
-    for i in range(1, len(sorted_files)):
-        file_i = sorted_files[i][1]
-        with open(file_i, "r", encoding="utf-8") as file_obj:
-            lines_curr = file_obj.readlines()
-            changes[i] = {"round": sorted_files[i][0], "added": [], "length": len(lines_curr) - 1}
-            prev_counter = Counter(line.strip() for line in lines_prev[1:])
-            curr_counter = Counter(line.strip() for line in lines_curr[1:])
-            for row_text, curr_count in curr_counter.items():
-                added_count = curr_count - prev_counter.get(row_text, 0)
-                if added_count > 0:
-                    for _ in range(added_count):
-                        changes[i]["added"].append(row_text.split(","))
-            lines_prev = lines_curr
-    return changes
-
-
 def _get_regression_metrics(training_data):
     metrics = []
     y_true_total: list[float] = []
@@ -121,24 +140,23 @@ def _get_regression_metrics(training_data):
             loss = round_data["global_loss"]
             cs = round_data.get("client_stats") or []
             part = float(round_data.get("participating_clients", len(cs))) / total_clients
+            has_y = bool(cs and isinstance(cs[0], dict) and "y_true" in cs[0])
+            round_y_true: list[float] = []
+            round_y_pred: list[float] = []
+            if has_y:
+                for client in cs:
+                    round_y_true.extend(client["y_true"])
+                    round_y_pred.extend(client["y_pred"])
+                y_true_total.extend(round_y_true)
+                y_pred_total.extend(round_y_pred)
             persisted_r2 = round_data.get("global_r2")
             if persisted_r2 is not None:
                 try:
                     r2 = float(persisted_r2)
                 except (TypeError, ValueError):
                     r2 = float("nan")
-                metrics.append({"loss": loss, "r2": r2, "participation": part})
-                continue
-            has_y = bool(cs and isinstance(cs[0], dict) and "y_true" in cs[0])
-            if has_y:
-                y_true: list[float] = []
-                y_pred: list[float] = []
-                for client in cs:
-                    y_true.extend(client["y_true"])
-                    y_pred.extend(client["y_pred"])
-                y_true_total.extend(y_true)
-                y_pred_total.extend(y_pred)
-                r2 = float(r2_score(y_true, y_pred))
+            elif has_y:
+                r2 = float(r2_score(round_y_true, round_y_pred))
             else:
                 r2 = float("nan")
             metrics.append({"loss": loss, "r2": r2, "participation": part})
