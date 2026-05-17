@@ -415,8 +415,32 @@ class NewProject(ttk.Frame):
             self.node_vars[node_id].set(node_id in selected_node_ids)
 
         self._render_strategy_param_fields()
-            
-        
+
+        if self.project is not None:
+            self._lock_fields_for_existing_project()
+
+    def _lock_fields_for_existing_project(self) -> None:
+        """Keep only name, description and node assignment editable when viewing config."""
+        self.model_select_btn.configure(state="disabled")
+        self.task_type_cb.configure(state="disabled")
+        self.metrics_cb.configure(state="disabled")
+        self.params_button.configure(cursor="", fg="#888888")
+
+        for widget in (
+            self.optimizer_cb,
+            self.aggregation_cb,
+            self.epochs,
+            self.validation_split,
+            self.batch_size,
+            self.fraction_fit,
+            self.fraction_evaluate,
+            self.learning_rate,
+        ):
+            widget.configure(state="disabled")
+
+        for _, (_, widget) in self._strategy_param_widgets.items():
+            widget.configure(state="disabled")
+
     def _select_model(self):
         try:
             ruta_inicial = filedialog.askopenfilename(
