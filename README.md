@@ -13,3 +13,6 @@ Python Version: 3.12/3.13
 
 Admin: 
     Usuario y contraseña del administrador en .env
+
+
+En la carpeta ``samples`` se pueden encontrar modelos y datasets de ejemplo, dentro de una carpeta con el nombre del problema. 
