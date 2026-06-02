@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from src.application.dto.operation_result import OperationResult
+from src.application.services.dataset_service import DatasetService
 from src.application.repositories.node_repository import NodeRepository
 from src.application.repositories.project_repository import ProjectRepository
 from src.application.repositories.user_repository import UserRepository
@@ -92,15 +93,14 @@ class RunFederatedTrainingUseCase:
         project_row: dict[str, Any],
         nodes: list[dict[str, Any]],
     ) -> str | None:
-        """Validate each node dataset exists for the current training round."""
-        round_num = int(project_row.get("training_round") or 0)
+        """Validate each node has at least one local dataset (latest ``dataset_N`` file)."""
         missing_paths: list[str] = []
         datasets_root = Path(__file__).resolve().parents[3] / "database" / "datasets"
         for node in nodes:
             node_uuid = str(uuid.UUID(bytes=node["id"]))
-            dataset_path = datasets_root / f"node_{node_uuid}" / f"dataset_{round_num}.csv"
-            if not dataset_path.is_file():
-                missing_paths.append(str(dataset_path))
+            node_dir = datasets_root / DatasetService.node_dir_name(node_uuid)
+            if DatasetService.find_last_existing_dataset(node_dir) is None:
+                missing_paths.append(str(node_dir))
         if not missing_paths:
             return None
         first_missing = missing_paths[0]

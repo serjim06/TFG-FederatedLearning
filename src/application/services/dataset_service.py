@@ -16,6 +16,20 @@ class DatasetService:
         """Return canonical dataset folder name for one node."""
         return f"node_{node_uuid}"
 
+    @staticmethod
+    def find_last_existing_dataset(node_dir: Path) -> tuple[int, Path] | None:
+        """Return (round, path) for the highest-numbered ``dataset_*.csv`` in *node_dir*."""
+        pattern = re.compile(r"dataset_(\d+)\.csv")
+        found_files: list[tuple[int, Path]] = []
+        if node_dir.is_dir():
+            for file_path in node_dir.glob("dataset_*.csv"):
+                match = pattern.match(file_path.name)
+                if match:
+                    found_files.append((int(match.group(1)), file_path))
+        if not found_files:
+            return None
+        return max(found_files, key=lambda item: item[0])
+
     def get_last_dataset_path(
         self,
         node_uuid: str,
@@ -25,15 +39,9 @@ class DatasetService:
     ) -> Path:
         """Return or create dataset file for the current round."""
         node_dir = DATASETS_ROOT / self.node_dir_name(node_uuid)
-        pattern = re.compile(r"dataset_(\d+)\.csv")
-        found_files = []
-        if node_dir.exists():
-            for file_path in node_dir.glob("dataset_*.csv"):
-                match = pattern.search(file_path.name)
-                if match:
-                    found_files.append((int(match.group(1)), file_path))
-        if found_files:
-            last_dataset, file_path = max(found_files, key=lambda x: x[0])
+        last = self.find_last_existing_dataset(node_dir)
+        if last:
+            last_dataset, file_path = last
             if last_dataset != cur_round:
                 dest = node_dir / f"dataset_{cur_round}.csv"
                 shutil.copy2(file_path, dest)

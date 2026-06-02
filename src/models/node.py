@@ -17,6 +17,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, OrdinalEncoder
 from torch.utils.data import DataLoader, TensorDataset
 
+from src.application.services.dataset_service import DatasetService
 from src.db import dbcon
 from src.projects.projects import cargar_modulo, verificar_modulo
 
@@ -137,16 +138,17 @@ def _fetch_project_for_node(node_id: bytes) -> dict:
 
 
 def _dataset_csv_path(node_id: bytes, project_row: dict) -> Path:
-    """Path to the node's current-round CSV (same logic as the GUI)."""
-    r = int(project_row.get("training_round") or 0)
+    """Path to the node's latest local dataset CSV (highest ``dataset_N`` suffix)."""
     node_dir = DATASETS_ROOT / f"node_{_node_uuid_str(node_id)}"
-    path = node_dir / f"dataset_{r}.csv"
-    if not path.is_file():
+    last = DatasetService.find_last_existing_dataset(node_dir)
+    if last is None:
+        r = int(project_row.get("training_round") or 0)
+        hint = node_dir / f"dataset_{r}.csv"
         raise FileNotFoundError(
-            f"No existe el dataset local esperado: {path}. "
+            f"No existe ningún dataset local en {node_dir} (p. ej. {hint}). "
             "Añade datos con la opción «Añadir dataset» o crea el CSV."
         )
-    return path
+    return last[1]
 
 
 def _task_kind(metrics: str) -> str:
