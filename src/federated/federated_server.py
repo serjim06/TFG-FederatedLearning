@@ -14,8 +14,7 @@ from typing import Any, Callable, Optional
 import numpy as np
 import ray
 import torch
-from flwr.client import Client
-from flwr.client.numpy_client import NumPyClient
+from flwr.client import Client, NumPyClient
 from flwr.common import Context, Scalar, ndarrays_to_parameters
 from flwr.common.constant import PARTITION_ID_KEY
 from flwr.server.server_config import ServerConfig

@@ -4,4 +4,4 @@ reportlab
 scikit-learn
 matplotlib
 TkToolTip
-flwr[simulation]
+flwr[simulation]>=1.29,<1.30
