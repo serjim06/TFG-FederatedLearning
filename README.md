@@ -1,6 +1,6 @@
 ### Para ejecutar:
 
-- ``git clone https://github.com/serjim06/TFG2025.git``
+- ``git clone https://github.com/serjim06/TFG-FederatedLearning.git``
 - ``cd TFG-FederatedLearning/``
 - ``python -m venv .venv source``
 - ``.venv/bin/activate``
