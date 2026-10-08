@@ -120,7 +120,7 @@ Flujo típico: **GUI → caso de uso → servicio / repositorio → persistencia
 python -m src.main
 ```
 
-1. Inicie sesión con las credenciales del administrador definidas en `.env`, o registre un usuario nuevo.
+1. Registre un usuario nuevo en el sistema.
 2. Cree un proyecto indicando el modelo (fichero `.py`), el tipo de problema, la estrategia de agregación y sus parámetros.
 3. Asigne un dataset CSV a cada nodo participante.
 4. Lance el entrenamiento federado indicando el número de rondas.
