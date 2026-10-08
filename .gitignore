@@ -3,6 +3,8 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+
+
 # C extensions
 *.so
 
@@ -302,6 +304,7 @@ http-client.private.env.json
 *.md
 !README.md
 !docs/*.md
+!docs/*.pdf
 
 # Database
 database/
